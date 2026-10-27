@@ -1,0 +1,2 @@
+# StyLua and .editorconfig require LF, including Windows checkouts with core.autocrlf.
+* text=auto eol=lf

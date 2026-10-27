@@ -1,0 +1,95 @@
+name: Validate hangar.nvim
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: validate-${{ github.ref }}
+  cancel-in-progress: true
+
+env:
+  NEOVIM_VERSION: v0.12.5
+  STYLUA_VERSION: 2.4.0
+
+jobs:
+  validate:
+    name: Validate hangar on ${{ matrix.os }}
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 30
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, windows-latest]
+    defaults:
+      run:
+        shell: pwsh
+
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v7
+        with:
+          persist-credentials: false
+
+      - name: Install baseline Neovim
+        run: |
+          $name = if ($IsWindows) { 'nvim-win64' } else { 'nvim-linux-x86_64' }
+          $extension = if ($IsWindows) { '.zip' } else { '.tar.gz' }
+          $archive = Join-Path $env:RUNNER_TEMP ($name + $extension)
+          Invoke-WebRequest "https://github.com/neovim/neovim/releases/download/$env:NEOVIM_VERSION/$name$extension" -OutFile $archive
+          if ($IsWindows) {
+            Expand-Archive -LiteralPath $archive -DestinationPath $env:RUNNER_TEMP
+          } else {
+            tar -C $env:RUNNER_TEMP -xzf $archive
+            if ($LASTEXITCODE -ne 0) { throw 'Neovim extraction failed' }
+          }
+          Join-Path $env:RUNNER_TEMP "$name/bin" | Out-File -FilePath $env:GITHUB_PATH -Append
+
+      - name: Install just
+        uses: extractions/setup-just@v4
+
+      - name: Install StyLua
+        run: |
+          $platform = if ($IsWindows) { 'windows-x86_64' } else { 'linux-x86_64' }
+          $checksum = if ($IsWindows) { '3803853280cb524560c6ce0d4140f6d9f02e03f55e1ce50bb4f5e51e07565794' } else { 'f9c84c210712061cb03ab8354a34a5d4f5fcf1f369d2ce916bea3ab9f7addac8' }
+          $archive = Join-Path $env:RUNNER_TEMP 'stylua.zip'
+          $directory = Join-Path $env:RUNNER_TEMP 'stylua'
+          Invoke-WebRequest "https://github.com/JohnnyMorganz/StyLua/releases/download/v$env:STYLUA_VERSION/stylua-$platform.zip" -OutFile $archive
+          if ((Get-FileHash -LiteralPath $archive -Algorithm SHA256).Hash -ne $checksum) { throw 'StyLua checksum mismatch' }
+          Expand-Archive -LiteralPath $archive -DestinationPath $directory
+          if (!$IsWindows) {
+            chmod +x (Join-Path $directory 'stylua')
+            if ($LASTEXITCODE -ne 0) { throw 'StyLua permission setup failed' }
+          }
+          $directory | Out-File -FilePath $env:GITHUB_PATH -Append
+
+      - name: Install Linux validation tools
+        if: runner.os == 'Linux'
+        shell: bash
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y luarocks
+          sudo luarocks install luacheck 1.2.0-1
+
+      - name: Install Windows Luacheck
+        if: runner.os == 'Windows'
+        run: |
+          $directory = Join-Path $env:RUNNER_TEMP 'luacheck'
+          New-Item -ItemType Directory -Path $directory -Force | Out-Null
+          $executable = Join-Path $directory 'luacheck.exe'
+          Invoke-WebRequest 'https://github.com/lunarmodules/luacheck/releases/download/v1.2.0/luacheck.exe' -OutFile $executable
+          if ((Get-FileHash -LiteralPath $executable -Algorithm SHA256).Hash -ne '0f1c69c4d09f1ebb4d8df14c215e4553e2e639bd4cb7bf3c639b0daa6198317b') {
+            throw 'Luacheck checksum mismatch'
+          }
+          $directory | Out-File -FilePath $env:GITHUB_PATH -Append
+
+      - name: Clone pinned test dependencies
+        run: just deps
+
+      - name: Check Lua and run all specs
+        run: just all
