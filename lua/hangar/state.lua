@@ -8,10 +8,6 @@ local function state_path()
   return config.get().state_path()
 end
 
-local function legacy_state_path()
-  return config.get().legacy_state_path()
-end
-
 local function build_defaults()
   local tools = config.get().registry
   local defaults = { formatter_order = {}, linter_order = {} }
@@ -48,16 +44,12 @@ local function is_string_list(value)
   return #value == vim.tbl_count(value)
 end
 
----@param opts? { path: string?, legacy_path: string? }
+---@param opts? { path: string? }
 function M.load(opts)
   opts = opts or {}
   local file = io.open(opts.path or state_path(), "r")
   if not file then
-    local legacy_path = opts.legacy_path or legacy_state_path()
-    file = legacy_path and io.open(legacy_path, "r") or nil
-    if not file then
-      return build_defaults()
-    end
+    return build_defaults()
   end
   local raw = file:read("*a")
   file:close()

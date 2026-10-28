@@ -115,7 +115,6 @@ Fields ~
 {registry} `(table<string, table>)` logical tools by category, plus `<category>_defaults` orders
 {defaults} `(optional)` `(fun(): { formatter?: table<string, string[]>, linter?: table<string, string[]> })` user default orders
 {state_path} `(optional)` `(fun(): string)`
-{legacy_state_path} `(optional)` `(fun(): string?)`
 {ui} `(optional)` `(table)` view options (|hangar-ui|)
 {icons} `(optional)` `(table<string, string>)`
 {border} `(optional)` `(any)`

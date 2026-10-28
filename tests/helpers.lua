@@ -256,9 +256,6 @@ function M.options()
     state_path = function()
       return vim.g.hangar_state_path
     end,
-    legacy_state_path = function()
-      return vim.g.hangar_legacy_state_path
-    end,
     adapters = {
       activation = {
         formatter = function()

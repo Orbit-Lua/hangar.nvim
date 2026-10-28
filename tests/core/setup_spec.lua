@@ -50,9 +50,6 @@ describe("Hangar setup", function()
       state_path = function()
         return root .. "/tools.json"
       end,
-      legacy_state_path = function()
-        return nil
-      end,
       border = "single",
       adapters = {
         dap = {

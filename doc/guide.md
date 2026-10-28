@@ -94,7 +94,7 @@ Use `[` / `]` on a formatter or linter in buffer scope or in an expanded filetyp
 
 The registry uses logical IDs. At runtime, adapters translate them to backend aliases through `runtime_name`, for example `yaml` to conform's `yamlfmt`.
 
-State is stored in the file that `state_path` returns. If the file is missing, hangar reads `legacy_state_path` when one is set. A malformed state falls back to defaults. Valid values merge with the current definitions. Removed tools and stale or duplicate order entries are left out.
+State is stored in the file that `state_path` returns. Only this file is read. Missing or malformed state falls back to defaults. Valid values merge with the current definitions. Removed tools and stale or duplicate order entries are left out.
 
 A write takes an exclusive lock and reads the disk state again. Then it merges the selected change and replaces the file atomically. Unrelated changes from another instance stay. If the replacement is refused, the old disk state stays and the requested runtime change does not apply. If the lock is busy, try again after its writer finishes. Locks record a PID and ownership token. Recovery requires a confirmed dead process. Live locks are never stolen because of age. Malformed locks and abandoned recovery guards require operator inspection. Confirm that no writer owns the state before removing them. A cleanup failure reports saved intent separately from unchanged runtime. A write from another instance does not refresh a view that is already open.
 

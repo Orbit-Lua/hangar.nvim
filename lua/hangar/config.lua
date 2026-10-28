@@ -19,7 +19,6 @@
 ---@field registry table<string, table> logical tools by category, plus `<category>_defaults` orders
 ---@field defaults? fun(): { formatter?: table<string, string[]>, linter?: table<string, string[]> } user default orders
 ---@field state_path? fun(): string
----@field legacy_state_path? fun(): string?
 ---@field ui? table view options (|hangar-ui|)
 ---@field icons? table<string, string>
 ---@field border? any
@@ -162,7 +161,6 @@ local function validate(opts)
   check(opts.registry, "table", "registry")
   check(opts.defaults, "function", "defaults", true)
   check(opts.state_path, "function", "state_path", true)
-  check(opts.legacy_state_path, "function", "legacy_state_path", true)
   check(opts.ui, "table", "ui", true)
   check(opts.icons, "table", "icons", true)
   local adapters = opts.adapters or {}
@@ -239,9 +237,6 @@ function M.resolve(opts)
     end,
     state_path = opts.state_path or function()
       return vim.fn.stdpath("data") .. "/hangar.json"
-    end,
-    legacy_state_path = opts.legacy_state_path or function()
-      return nil
     end,
     ui = ui,
     icons = fill(opts.icons or {}, default_icons()),

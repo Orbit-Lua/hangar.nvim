@@ -63,7 +63,7 @@ Only `registry` is required. The other options have defaults:
 | --- | --- |
 | `ui` | View size, mappings, layout spacing, details and missing-package policy |
 | `icons`, `border` | Status glyphs and `"rounded"` |
-| `state_path`, `legacy_state_path` | `stdpath("data")/hangar.json`, no legacy file |
+| `state_path` | `stdpath("data")/hangar.json` |
 | `defaults` | Additional initial orders by category and filetype |
 | `adapters.activation.formatter` / `.linter` | None: hangar uses the lists that `filter` records, or else the backend lists |
 | `adapters.dap` | None: DAP changes are refused |

@@ -32,24 +32,28 @@ describe("hangar.state", function()
     require("tests.helpers").configure()
   end)
 
-  it(
-    "falls back to legacy service state when the current file is absent",
-    function()
-      local legacy_path = test.temp_dir("legacy-state") .. "/service.json"
-      test.write_file(
-        legacy_path,
-        vim.json.encode({ lsp = { lua_ls = false } })
-      )
+  it("uses defaults when only a legacy state file exists", function()
+    local legacy_path = test.temp_dir("legacy-state") .. "/service.json"
+    test.write_file(legacy_path, vim.json.encode({ lsp = { lua_ls = false } }))
 
-      local loaded = state.load({
-        path = state_path .. ".missing",
-        legacy_path = legacy_path,
-      })
+    local consulted = false
+    test.configure({
+      legacy_state_path = function()
+        consulted = true
+        return legacy_path
+      end,
+    })
+    local loaded = state.load({ legacy_path = legacy_path })
 
-      assert.is_false(loaded.lsp.lua_ls)
-      assert.is_true(loaded.lsp.pyright)
-    end
-  )
+    assert.is_true(loaded.lsp.lua_ls)
+    assert.is_true(loaded.lsp.pyright)
+    assert.is_false(consulted)
+    assert.is_nil(vim.uv.fs_stat(state_path))
+    assert.same(
+      { vim.json.encode({ lsp = { lua_ls = false } }) },
+      vim.fn.readfile(legacy_path)
+    )
+  end)
 
   it("falls back safely for malformed persisted state", function()
     for index, content in ipairs({ "{broken", "null", "[]" }) do
@@ -59,7 +63,6 @@ describe("hangar.state", function()
         state.load({ path = state_path .. ".missing" }),
         state.load({
           path = path,
-          legacy_path = path .. ".missing",
         })
       )
     end
