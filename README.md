@@ -22,7 +22,7 @@ With [lazy.nvim](https://github.com/folke/lazy.nvim):
 ```lua
 {
   "Orbit-Lua/hangar.nvim",
-  version = "^0.2",
+  version = "^0.3",
   dependencies = { "MunifTanjim/nui.nvim" },
   opts = {
     registry = {
