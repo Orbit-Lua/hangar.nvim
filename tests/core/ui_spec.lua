@@ -808,4 +808,88 @@ describe("Hangar Nui sessions", function()
       end
     end
   )
+
+  it(
+    "replaces view options, rebinds keys and keeps a valid category",
+    function()
+      vim.o.columns, vim.o.lines = 160, 45
+      ---Text of every floating window, which holds the footer hints.
+      local function floats()
+        local text = {}
+        for _, window in ipairs(vim.api.nvim_list_wins()) do
+          if vim.api.nvim_win_get_config(window).relative ~= "" then
+            local buffer = vim.api.nvim_win_get_buf(window)
+            table.insert(text, lines(buffer))
+          end
+        end
+        return table.concat(text, "\n")
+      end
+      local function update(values)
+        local count = #snapshots
+        tool.update_ui(values)
+        assert.is_true(vim.wait(200, function()
+          return #snapshots > count
+        end))
+      end
+      local function mapped(key)
+        return vim.api.nvim_buf_call(body(), function()
+          return vim.fn.maparg(key, "n") ~= ""
+        end)
+      end
+
+      tool.open()
+      local default_width = vim.api.nvim_win_get_width(vim.fn.bufwinid(body()))
+      update({ width = 90 })
+      assert.equals(90, vim.api.nvim_win_get_width(vim.fn.bufwinid(body())))
+      update({})
+      assert.equals(
+        default_width,
+        vim.api.nvim_win_get_width(vim.fn.bufwinid(body()))
+      )
+      assert.is_false(pcall(tool.update_ui, "wide"))
+      for _, categories in ipairs({ {}, { "nope" } }) do
+        assert.is_false(pcall(tool.update_ui, { categories = categories }))
+      end
+      assert.equals(
+        default_width,
+        vim.api.nvim_win_get_width(vim.fn.bufwinid(body()))
+      )
+
+      -- Close moves from q to x: bindings, help and footer follow.
+      local mappings = vim.deepcopy(require("hangar.config").get().ui.mappings)
+      for _, mapping in ipairs(mappings) do
+        if mapping.action == "close" then
+          mapping.keys = { "x" }
+        end
+      end
+      update({ mappings = mappings, categories = { "lsp", "formatter" } })
+      assert.is_true(mapped("x"))
+      assert.is_false(mapped("q"))
+      assert.is_true(mapped("2"))
+      assert.is_false(mapped("3"))
+      assert.truthy(floats():find(" x close", 1, true))
+      assert.is_nil(floats():find(" q close", 1, true))
+      press("?")
+      assert.truthy(
+        lines():find("1–2  Select category (LSP, Formatter)", 1, true)
+      )
+      assert.truthy(lines():find("x  Close Hangar", 1, true))
+      press("?")
+
+      -- The selected category follows its name, or falls back to the first.
+      press("2")
+      update({ mappings = mappings, categories = { "formatter", "lsp" } })
+      assert.equals("formatter", snapshots[#snapshots].category)
+      update({ mappings = mappings, categories = { "lsp" } })
+      assert.equals("lsp", snapshots[#snapshots].category)
+
+      -- A view reopened after an update starts on a valid category.
+      update({})
+      press("6")
+      press("q")
+      tool.update_ui({ categories = { "lsp" } })
+      tool.open()
+      assert.equals("lsp", snapshots[#snapshots].category)
+    end
+  )
 end)

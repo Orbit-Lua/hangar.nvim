@@ -169,23 +169,34 @@ function M.chrome(view, snapshot)
   write(view, view.header, header)
   local hints = Line()
   local category = view:category()
-  local actions = width < 50
-      and { { "?", "help" }, { "s", "scope" }, { "q", "close" } }
-    or {
-      { "Space", "toggle" },
-      { "i", "install" },
-      { "K", "details" },
-      { "s", "scope" },
-      { "?", "help" },
-      { "q", "close" },
-    }
-  if category == "parser" or category == "package" then
-    actions = vim.tbl_filter(function(action)
-      return action[1] ~= "Space"
-    end, actions)
+  -- A hint names the first key of a configured action; an unbound action has
+  -- no hint.
+  local function hint(action)
+    for _, mapping in ipairs(ui().mappings) do
+      if mapping.action == action and mapping.keys[1] then
+        return { (mapping.keys[1]:gsub("^<(.*)>$", "%1")), action }
+      end
+    end
   end
-  if width >= 75 and (category == "formatter" or category == "linter") then
-    table.insert(actions, 1, { "[/]", "priority" })
+  local wanted = width < 50 and { "help", "scope", "close" }
+    or { "toggle", "install", "details", "scope", "help", "close" }
+  if category == "parser" or category == "package" then
+    wanted = vim.tbl_filter(function(action)
+      return action ~= "toggle"
+    end, wanted)
+  end
+  local actions = {}
+  for _, action in ipairs(wanted) do
+    table.insert(actions, hint(action))
+  end
+  local up, down = hint("up"), hint("down")
+  if
+    width >= 75
+    and up
+    and down
+    and (category == "formatter" or category == "linter")
+  then
+    table.insert(actions, 1, { up[1] .. "/" .. down[1], "priority" })
   end
   for _, action in ipairs(actions) do
     local text = " " .. action[1] .. " " .. action[2]
@@ -465,8 +476,15 @@ function M.help(view)
   end
   add(" Hangar · Help", "Title")
   add("", "Normal")
+  local labels = vim.tbl_map(function(category)
+    return ui().labels[category] or category
+  end, ui().categories)
   add(
-    " 1–6  Select category (LSP, DAP, Linter, Formatter, Parser, Package)",
+    string.format(
+      " %s  Select category (%s)",
+      #labels == 1 and "1" or ("1–" .. #labels),
+      table.concat(labels, ", ")
+    ),
     "Normal"
   )
   for _, mapping in ipairs(ui().mappings) do

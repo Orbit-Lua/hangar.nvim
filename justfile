@@ -3,8 +3,8 @@ set windows-shell := ["cmd.exe", "/d", "/c"]
 
 lua_paths := "lua tests scripts"
 
-# Check formatting, lint, and run the core and integration specs
-all: fmt-check lint test-core test-integration
+# Check formatting, lint, generated help, and run the core and integration specs
+all: fmt-check lint doc-check test-core test-integration
 
 # Rewrite Lua formatting
 fmt:
@@ -33,3 +33,11 @@ test-integration:
 # Clone the pinned Plenary and Nui test dependencies into .deps/
 deps:
     nvim --headless --clean -u NONE -l scripts/deps.lua
+
+# Generate doc/hangar.txt from the annotations
+doc:
+    nvim --headless --clean -u NONE -l scripts/doc.lua
+
+# Fail when doc/hangar.txt is out of date or its help tags are invalid
+doc-check:
+    nvim --headless --clean -u NONE -l scripts/doc.lua --check

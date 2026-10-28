@@ -21,6 +21,7 @@
 ---@field installation_status? fun(name: string): boolean?, string?
 ---@field wiring_status? fun(opts: Hangar.StatusOpts): string?, string?
 ---@field unavailable? fun(): string? why runtime changes cannot apply, checked before state is saved
+---@field special_listing? fun(opts: Hangar.StatusOpts): string? backend key outside filetypes that still lists the tool
 
 return {
   lsp = require("hangar.category.lsp"),

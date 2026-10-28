@@ -70,8 +70,15 @@ local function configured_order(category, ft)
   if category ~= "formatter" and category ~= "linter" then
     return nil
   end
-  return state_mod.get_order(category --[[@as "formatter"|"linter"]], ft)
+  local saved = state_mod.get_order(category --[[@as "formatter"|"linter"]], ft)
     or tools()[category .. "_defaults"][ft]
+  if saved then
+    return saved
+  end
+  -- Without a configured order, the activation order is the priority, so a
+  -- re-enabled tool returns to its original position.
+  local lists = require("hangar.activation").get(category)
+  return lists and lists[ft] and M.from_runtime(category, lists[ft])
 end
 
 ---@param category Hangar.Category

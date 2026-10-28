@@ -12,8 +12,52 @@ end
 local View = {}
 View.__index = View
 
+---Keep the selected category valid after the categories change: follow its
+---name, or select the first category when it is gone.
+---@param state { category: integer, category_name: string? }
+function View.normalize(state)
+  local categories = ui().categories
+  local index = state.category_name
+      and (vim.fn.index(categories, state.category_name) + 1)
+    or state.category
+  if not categories[index] then
+    index = 1
+  end
+  state.category, state.category_name = index, categories[index]
+end
+
+---@param index integer
+function View:select_category(index)
+  self.state.category = index
+  self.state.category_name = ui().categories[index]
+end
+
 function View:category()
   return ui().categories[self.state.category]
+end
+
+---Bind the configured mappings and one numeric key per category, replacing
+---the keys of the previous options.
+function View:map_keys()
+  for _, key in ipairs(self.mapped or {}) do
+    pcall(self.body.unmap, self.body, "n", key)
+  end
+  self.mapped = {}
+  for _, mapping in ipairs(ui().mappings) do
+    for _, key in ipairs(mapping.keys) do
+      self.body:map("n", key, function()
+        self:action(mapping.action)
+      end, { nowait = true, silent = true, desc = mapping.description })
+      table.insert(self.mapped, key)
+    end
+  end
+  for index = 1, #ui().categories do
+    self.body:map("n", tostring(index), function()
+      self:select_category(index)
+      self:refresh(true)
+    end, { nowait = true, silent = true })
+    table.insert(self.mapped, tostring(index))
+  end
 end
 
 function View:active()
@@ -236,10 +280,9 @@ function View:action(action)
     return
   end
   if action == "next" or action == "previous" then
-    self.state.category = (
-      (self.state.category - 1 + (action == "next" and 1 or -1))
-      % #ui().categories
-    ) + 1
+    local count = #ui().categories
+    local step = action == "next" and 1 or -1
+    self:select_category(((self.state.category - 1 + step) % count) + 1)
     self:refresh(true)
     return
   end
@@ -338,19 +381,7 @@ function View.new(source, state, on_close)
   self.unsubscribe = require("hangar.mason").observe(function()
     self:schedule_refresh()
   end)
-  for _, mapping in ipairs(ui().mappings) do
-    for _, key in ipairs(mapping.keys) do
-      self.body:map("n", key, function()
-        self:action(mapping.action)
-      end, { nowait = true, silent = true, desc = mapping.description })
-    end
-  end
-  for index = 1, #ui().categories do
-    self.body:map("n", tostring(index), function()
-      self.state.category = index
-      self:refresh(true)
-    end, { nowait = true, silent = true })
-  end
+  self:map_keys()
   for _, component in ipairs({ self.frame, self.header, self.body, self.footer }) do
     vim.api.nvim_create_autocmd("WinClosed", {
       group = self.group,
@@ -388,7 +419,11 @@ function View.new(source, state, on_close)
   vim.api.nvim_create_autocmd("User", {
     group = self.group,
     pattern = { "TSUpdate", "HangarChanged" },
-    callback = function()
+    callback = function(event)
+      if event.match == "HangarChanged" then
+        View.normalize(self.state)
+        self:map_keys()
+      end
       self:schedule_refresh()
     end,
   })

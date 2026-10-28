@@ -1,4 +1,4 @@
--- Clone the pinned test dependencies into .deps/ and check out their commits.
+-- Clone the pinned test and help dependencies into .deps/ at their commits.
 local dependencies = {
   {
     name = "plenary.nvim",
@@ -9,6 +9,11 @@ local dependencies = {
     name = "nui.nvim",
     url = "https://github.com/MunifTanjim/nui.nvim.git",
     commit = "10fc361835c856ba4233ef5ea135b919bf3dce97",
+  },
+  {
+    name = "mini.doc",
+    url = "https://github.com/nvim-mini/mini.doc.git",
+    commit = "54bb11880f2208a059a8d2564c3f4b586b78e044",
   },
 }
 

@@ -12,7 +12,7 @@ Preserve the setup options, mappings and persisted state unless the task changes
 - Before you push, squash related commits into one commit to keep the history clean.
 - Push only after the user approves that push.
 - Version releases with [Semantic Versioning 2.0.0](https://semver.org/).
-- Pin each test dependency to a commit that exists on its remote.
+- Pin each test and help dependency to a commit that exists on its remote.
 
 ## Code
 
@@ -44,8 +44,8 @@ Preserve the setup options, mappings and persisted state unless the task changes
 - Restore resources and module caches even after failed assertions.
 - Put fixtures below `vim.g.hangar_test_root` through `tests.helpers`.
 - Reject skipped tests and uncaught editor errors through executed results.
-- Run `just deps` once to clone the pinned Plenary and Nui sources into `.deps/`.
-- Run `just all` before you finish. It runs the core and integration specs.
+- Run `just deps` once to clone the pinned Plenary, Nui and mini.doc sources into `.deps/`.
+- Run `just all` before you finish. It checks the generated help and runs the core and integration specs.
 - End the report with `Tests added`, `Tests updated` or `No tests added`, and its protected contract.
 
 ## CI
@@ -76,5 +76,6 @@ Preserve the setup options, mappings and persisted state unless the task changes
   2. Translate the draft. Keep its sentence boundaries and one term for each concept. Keep commands, paths and code unchanged. Use the natural word order of the target language.
 - Follow `.stylua.toml` and `.editorconfig`.
 - Explain non-obvious behavior in comments.
+- Document the public interface in annotation blocks with a `@tag`. Run `just doc` after you change one.
 - Read [architecture](doc/architecture.md) before you change module boundaries or the setup options.
 - Read the [guide](doc/guide.md) before you change user-visible behavior, persistence or layout.

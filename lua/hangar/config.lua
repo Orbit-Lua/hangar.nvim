@@ -1,5 +1,10 @@
 ---@alias Hangar.Category "lsp"|"dap"|"linter"|"formatter"|"parser"|"package"
 
+---@tag hangar-registry
+---@text
+--- The registry maps logical tool names to definitions, by category: `lsp`,
+--- `dap`, `linter`, `formatter`, `parser` and `package`. `formatter_defaults`
+--- and `linter_defaults` set the default order by filetype.
 ---@class Hangar.Definition
 ---@field ft string[]?
 ---@field mason string?
@@ -7,16 +12,23 @@
 ---@field note string?
 ---@field source string?
 
+---@tag hangar-options
+---@text
+--- Options of |hangar.setup()|.
 ---@class Hangar.Options
 ---@field registry table<string, table> logical tools by category, plus `<category>_defaults` orders
 ---@field defaults? fun(): { formatter?: table<string, string[]>, linter?: table<string, string[]> } user default orders
 ---@field state_path? fun(): string
 ---@field legacy_state_path? fun(): string?
----@field ui? table view options; kept by reference so a caller can update it live
+---@field ui? table view options (|hangar-ui|)
 ---@field icons? table<string, string>
 ---@field border? any
 ---@field adapters? Hangar.Adapters
 
+---@tag hangar-adapters
+---@text
+--- Owners that hangar calls for runtime changes. Without `activation`, hangar
+--- uses the lists that |hangar.filter()| records, or else the backend lists.
 ---@class Hangar.Adapters
 ---@field dap? { runtime: fun(): table, options: fun(): table } debugger owner and adapter options
 ---@field activation? table<"formatter"|"linter", fun(): table<string, string[]>> initial runtime names by filetype
@@ -28,6 +40,19 @@ M.categories = { "lsp", "dap", "linter", "formatter", "parser", "package" }
 
 ---@type Hangar.Options?
 local options
+
+---@tag hangar-ui
+---@text
+--- View options. |hangar.setup()| fills the keys that `ui` omits. Replace them
+--- later with |hangar.update_ui()|.
+---
+--- - `categories`: category names in tab order; a nonempty list.
+--- - `labels`: tab label by category.
+--- - `mappings`: list of `{ keys, action, description }`.
+--- - `width`, `height`, `details.width`: window sizes in cells.
+--- - `layout`: `padding.vertical`, `padding.horizontal`, `column_gap`, `gap`
+---   and `margin` in cells.
+--- - `missing_package_policy`: `"auto"` or `"manual"`.
 
 local function default_ui()
   return {
@@ -176,6 +201,22 @@ local function fill(target, defaults)
   return target
 end
 
+---A view needs at least one category, and each must be one hangar knows.
+local function check_categories(categories, path)
+  local valid = type(categories) == "table"
+    and vim.islist(categories)
+    and #categories > 0
+  for _, category in ipairs(valid and categories or {}) do
+    valid = valid and vim.tbl_contains(M.categories, category)
+  end
+  if not valid then
+    error(
+      path .. " must be a nonempty list of " .. table.concat(M.categories, ", "),
+      4
+    )
+  end
+end
+
 ---Validate options and apply defaults. The registry gets every category and
 ---default-order table, so a partial registry can browse all categories.
 ---@param opts Hangar.Options
@@ -189,6 +230,8 @@ function M.resolve(opts)
   registry.formatter_defaults = registry.formatter_defaults or {}
   registry.linter_defaults = registry.linter_defaults or {}
   local adapters = opts.adapters or {}
+  local ui = fill(opts.ui or {}, default_ui())
+  check_categories(ui.categories, "hangar.setup: ui.categories")
   return {
     registry = registry,
     defaults = opts.defaults or function()
@@ -200,7 +243,7 @@ function M.resolve(opts)
     legacy_state_path = opts.legacy_state_path or function()
       return nil
     end,
-    ui = fill(opts.ui or {}, default_ui()),
+    ui = ui,
     icons = fill(opts.icons or {}, default_icons()),
     border = opts.border or "rounded",
     adapters = {
@@ -213,6 +256,19 @@ function M.resolve(opts)
       },
     },
   }
+end
+
+---Build view options from `values` and the defaults, so a key that `values`
+---omits returns to its default.
+---@param values table
+---@return table
+function M.resolve_ui(values)
+  if type(values) ~= "table" then
+    error("hangar.update_ui: values must be a table", 3)
+  end
+  local ui = fill(vim.deepcopy(values), default_ui())
+  check_categories(ui.categories, "hangar.update_ui: categories")
+  return ui
 end
 
 ---@return Hangar.Options

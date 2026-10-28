@@ -115,7 +115,15 @@ function M.health_status(category, name, meta, filetype, bufnr)
   if installing then
     label, severity = "Installing…", "DiagnosticInfo"
   elseif enabled == false then
-    label, severity = "Disabled", "Comment"
+    -- Conform still runs a tool listed under "*" or "_", which hangar leaves.
+    local special = handler.special_listing
+      and handler.special_listing({ name = name, meta = meta })
+    if special then
+      label = string.format('Disabled, still listed under "%s"', special)
+      severity = "DiagnosticWarn"
+    else
+      label, severity = "Disabled", "Comment"
+    end
   elseif installation == "missing" then
     label, severity = "Not installed", "DiagnosticWarn"
   elseif installation == "unavailable" or installation == "unknown" then

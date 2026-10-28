@@ -1,0 +1,151 @@
+                                                 *hangar.txt* *hangar* *hangar.nvim*
+
+Manage language servers, debug adapters, formatters, linters, Tree-sitter
+parsers and Mason packages from one view.
+
+This help lists the public interface. The guide in `doc/guide.md` of the
+repository describes the view, statuses, locks and session behavior.
+
+------------------------------------------------------------------------------
+                                                                *hangar.close()*
+                                `hangar.close`()
+
+Close the open view. Running operations continue.
+
+------------------------------------------------------------------------------
+                                                                *hangar.setup()*
+                             `hangar.setup`({opts})
+
+Validate {opts} and fill the defaults. Only `registry` is required. See
+|hangar-options|.
+
+A repeated call replaces the options, drops cached state and failures, and
+closes the open view. It raises an error while a toggle or an installation
+runs.
+Parameters ~
+{opts} `(Hangar.Options)`
+
+------------------------------------------------------------------------------
+                                                               *hangar.filter()*
+                      `hangar.filter`({category}, {by_ft})
+
+Apply saved enablement and order to a table of tool names by filetype.
+Use it for conform's `formatters_by_ft` and nvim-lint's `linters_by_ft`, so
+intent from the view persists across restarts without an adapter.
+
+Returns a new table. {by_ft} becomes the activation that re-enabling
+restores. Unregistered names stay after the registered ones. Option keys,
+function entries and the `*` and `_` keys stay unchanged.
+
+Call it after |hangar.setup()|.
+Parameters ~
+{category} `(string)` `"formatter"` or `"linter"`
+{by_ft} `(table<string, any>)` tool names by filetype
+Return ~
+`(table<string, any>)`
+Usage ~
+>lua
+  opts = {
+    formatters_by_ft = require("hangar").filter("formatter", {
+      lua = { "stylua" },
+    }),
+  }
+<
+------------------------------------------------------------------------------
+                                                            *hangar.update_ui()*
+                          `hangar.update_ui`({values})
+
+Replace the view options with {values}. A key that {values} omits takes
+its default. An open view rebinds its keys and redraws. See |hangar-ui|.
+
+It raises an error when `categories` is empty or names an unknown category.
+Parameters ~
+{values} `(table)`
+
+------------------------------------------------------------------------------
+                                                                 *hangar.open()*
+                                `hangar.open`()
+
+Open the view for the current buffer, or focus the open view.
+
+------------------------------------------------------------------------------
+                                                                 *hangar-events*
+
+`User HangarChanged`
+An open view redraws when this event fires. |hangar.update_ui()| fires it.
+Fire it yourself after you change the `ui` table that you passed to
+|hangar.setup()|.
+
+------------------------------------------------------------------------------
+                                                             *hangar-highlights*
+
+Each status icon has its own group: `HangarIconEnabled`, `HangarIconIdle`,
+`HangarIconInfo`, `HangarIconInstalling`, `HangarIconWarning`,
+`HangarIconError`, `HangarIconUnknown` and `HangarIconDisabled`.
+
+Category tabs use `HangarCategoryActive` and `HangarCategoryInactive`.
+
+Each group links to a built-in group by default. To override a group,
+define it in your color scheme or configuration.
+
+
+==============================================================================
+------------------------------------------------------------------------------
+                                                               *hangar-registry*
+
+The registry maps logical tool names to definitions, by category: `lsp`,
+`dap`, `linter`, `formatter`, `parser` and `package`. `formatter_defaults`
+and `linter_defaults` set the default order by filetype.
+Class ~
+{Hangar.Definition}
+Fields ~
+{ft} `(string[]?)`
+{mason} `(string?)`
+{runtime_name} `(string?)`
+{note} `(string?)`
+{source} `(string?)`
+
+------------------------------------------------------------------------------
+                                                                *hangar-options*
+
+Options of |hangar.setup()|.
+Class ~
+{Hangar.Options}
+Fields ~
+{registry} `(table<string, table>)` logical tools by category, plus `<category>_defaults` orders
+{defaults} `(optional)` `(fun(): { formatter?: table<string, string[]>, linter?: table<string, string[]> })` user default orders
+{state_path} `(optional)` `(fun(): string)`
+{legacy_state_path} `(optional)` `(fun(): string?)`
+{ui} `(optional)` `(table)` view options (|hangar-ui|)
+{icons} `(optional)` `(table<string, string>)`
+{border} `(optional)` `(any)`
+{adapters} `(optional)` `(Hangar.Adapters)`
+
+------------------------------------------------------------------------------
+                                                               *hangar-adapters*
+
+Owners that hangar calls for runtime changes. Without `activation`, hangar
+uses the lists that |hangar.filter()| records, or else the backend lists.
+Class ~
+{Hangar.Adapters}
+Fields ~
+{dap} `(optional)` `({ runtime: fun(): table, options: fun(): table })` debugger owner and adapter options
+{activation} `(optional)` `(table<"formatter"|"linter", fun(): table<string, string[]>>)` initial runtime names by filetype
+{linter} `(optional)` `({ logs?: fun(name: string): table[] })` run errors recorded for a linter
+
+------------------------------------------------------------------------------
+                                                                     *hangar-ui*
+
+View options. |hangar.setup()| fills the keys that `ui` omits. Replace them
+later with |hangar.update_ui()|.
+
+- `categories`: category names in tab order; a nonempty list.
+- `labels`: tab label by category.
+- `mappings`: list of `{ keys, action, description }`.
+- `width`, `height`, `details.width`: window sizes in cells.
+- `layout`: `padding.vertical`, `padding.horizontal`, `column_gap`, `gap`
+  and `margin` in cells.
+- `missing_package_policy`: `"auto"` or `"manual"`.
+
+
+ vim:tw=78:ts=8:noet:ft=help:norl:

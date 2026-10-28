@@ -10,23 +10,15 @@ local M = {}
 function M.new(spec)
   local order = require("hangar.order")
   local config = require("hangar.config")
+  local activation = require("hangar.activation")
 
-  -- The injected activation lists initial runtime names by filetype; it is read
-  -- per call so live configuration changes apply.
-  local function initial_activation()
-    return config.get().adapters.activation[spec.category]()
-  end
-  local missing_activation = "activation not configured: inject adapters.activation."
-    .. spec.category
   local adapter = {
     capabilities = { toggle = true, install = true, reorder = true },
   }
 
   ---Report why runtime changes cannot apply, before any state is saved.
   function adapter.unavailable()
-    if not config.get().adapters.activation[spec.category] then
-      return missing_activation
-    end
+    return activation.unavailable(spec.category)
   end
 
   local function backend()
@@ -37,52 +29,77 @@ function M.new(spec)
     return module
   end
 
+  ---Replace the runtime names of a list entry and keep its option keys,
+  ---such as conform's `stop_after_first`.
+  local function rewrite(entry, names)
+    local result = vim.deepcopy(names)
+    if type(entry) == "table" then
+      for key, value in pairs(entry) do
+        if type(key) ~= "number" then
+          result[key] = value
+        end
+      end
+    end
+    return result
+  end
+
   function adapter.apply_runtime(opts)
-    if adapter.unavailable() then
-      return false, missing_activation
+    local blocked = adapter.unavailable()
+    if blocked then
+      return false, blocked
     end
     local module, err = backend()
     if not module then
       return false, err
     end
 
-    -- Enabling restores a tool only where the configuration activates it;
-    -- other supported filetypes stay unwired, matching the next startup.
-    local activation = initial_activation()
+    -- Enabling restores a tool only where the activation lists it; other
+    -- supported filetypes stay unwired, matching the next startup.
+    local initial = activation.get(spec.category) or {}
     local runtime_name = opts.meta.runtime_name or opts.name
     for _, ft in ipairs(opts.meta.ft or {}) do
-      local list = module[spec.field][ft] or {}
-      if opts.is_enabled then
-        if
-          vim.tbl_contains(activation[ft] or {}, runtime_name)
-          and not vim.tbl_contains(list, runtime_name)
-        then
-          table.insert(list, runtime_name)
-        end
-      else
-        for i = #list, 1, -1 do
-          if list[i] == runtime_name then
-            table.remove(list, i)
+      local entry = module[spec.field][ft]
+      -- A function-valued entry is the backend's own logic; hangar leaves it.
+      if type(entry) ~= "function" then
+        local list = activation.names(entry) or {}
+        if opts.is_enabled then
+          if
+            vim.tbl_contains(initial[ft] or {}, runtime_name)
+            and not vim.tbl_contains(list, runtime_name)
+          then
+            table.insert(list, runtime_name)
+          end
+        else
+          for i = #list, 1, -1 do
+            if list[i] == runtime_name then
+              table.remove(list, i)
+            end
           end
         end
-      end
-      if module[spec.field][ft] or #list > 0 then
-        local names = order.from_runtime(spec.category, list)
-        local ordered = order.enabled_names_for_ft(spec.category, ft, names)
-        module[spec.field][ft] = order.to_runtime(spec.category, ordered)
+        if entry or #list > 0 then
+          local names = order.from_runtime(spec.category, list)
+          local ordered = order.enabled_names_for_ft(spec.category, ft, names)
+          module[spec.field][ft] =
+            rewrite(entry, order.to_runtime(spec.category, ordered))
+        end
       end
     end
   end
 
   function adapter.apply_order(opts)
-    if adapter.unavailable() then
-      return false, missing_activation
+    local blocked = adapter.unavailable()
+    if blocked then
+      return false, blocked
     end
     local module, err = backend()
     if not module then
       return false, err
     end
-    local old = module[spec.field][opts.ft] or {}
+    local entry = module[spec.field][opts.ft]
+    if type(entry) == "function" then
+      return
+    end
+    local old = activation.names(entry) or {}
     local known = {}
     for name, meta in pairs(config.get().registry[spec.category] or {}) do
       if vim.tbl_contains(meta.ft or {}, opts.ft) then
@@ -97,7 +114,24 @@ function M.new(spec)
         table.insert(result, name)
       end
     end
-    module[spec.field][opts.ft] = result
+    module[spec.field][opts.ft] = rewrite(entry, result)
+  end
+
+  ---The special backend key ("*" or "_") that still lists a tool, if any.
+  ---@param opts Hangar.StatusOpts
+  ---@return string?
+  function adapter.special_listing(opts)
+    local module = backend()
+    if not module or type(module[spec.field]) ~= "table" then
+      return nil
+    end
+    local runtime_name = opts.meta.runtime_name or opts.name
+    for _, key in ipairs(activation.special_keys) do
+      local names = activation.names(module[spec.field][key])
+      if names and vim.tbl_contains(names, runtime_name) then
+        return key
+      end
+    end
   end
 
   function adapter.wiring_status(opts)
@@ -115,14 +149,18 @@ function M.new(spec)
       return "no ft", "DiagnosticWarn"
     end
 
-    -- Measure against the configured activation, the set enabling restores.
+    -- Measure against the activation, the set enabling restores.
     local runtime_name = opts.meta.runtime_name or opts.name
-    local activation = initial_activation()
+    local initial = activation.get(spec.category) or {}
     local total, configured = 0, 0
     for _, ft in ipairs(filetypes) do
-      if vim.tbl_contains(activation[ft] or {}, runtime_name) then
+      if type(module[spec.field][ft]) == "function" then
+        -- The backend decides at run time; hangar reports it as configured.
+        total, configured = total + 1, configured + 1
+      elseif vim.tbl_contains(initial[ft] or {}, runtime_name) then
         total = total + 1
-        if vim.tbl_contains(module[spec.field][ft] or {}, runtime_name) then
+        local names = activation.names(module[spec.field][ft]) or {}
+        if vim.tbl_contains(names, runtime_name) then
           configured = configured + 1
         end
       end
