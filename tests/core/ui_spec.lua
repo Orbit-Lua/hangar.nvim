@@ -310,7 +310,12 @@ describe("Hangar Nui sessions", function()
       press("3")
       local maximum = require("hangar.config").get().ui.details.max_messages
       logger.get_entries = function()
-        return { { level = "ERROR", message = string.rep("字", 100) } }
+        return {
+          {
+            level = "ERROR",
+            message = string.rep("字", 100) .. "\r\nlog continuation",
+          },
+        }
       end
       linter.get_linter_diagnostics = function()
         local messages = {}
@@ -318,7 +323,7 @@ describe("Hangar Nui sessions", function()
           messages[index] = {
             file = "sample.py",
             lnum = index,
-            message = string.rep("診斷", 100),
+            message = string.rep("診斷", 100) .. "\noutput continuation",
             severity = vim.diagnostic.severity.ERROR,
           }
         end
@@ -335,6 +340,16 @@ describe("Hangar Nui sessions", function()
       assert.is_truthy(
         lines(detail_buffer):find(string.rep("診斷", 50), 1, true)
       )
+      -- Each line of multiline tool output becomes its own buffer line.
+      local continuations = {}
+      for _, line in
+        ipairs(vim.api.nvim_buf_get_lines(detail_buffer, 0, -1, false))
+      do
+        assert.is_falsy(line:find("\r", 1, true))
+        continuations[vim.trim(line)] = (continuations[vim.trim(line)] or 0) + 1
+      end
+      assert.equals(1, continuations["log continuation"])
+      assert.equals(maximum, continuations["output continuation"])
       local old_buffers = {}
       for _, buffer in ipairs(vim.api.nvim_list_bufs()) do
         if vim.bo[buffer].filetype:match("^Hangar") then

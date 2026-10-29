@@ -302,14 +302,28 @@ local function redraw(view)
     false,
     vim.fn["repeat"]({ "" }, top)
   )
-  for index, item in ipairs(content(view, view.details_node)) do
+  local indent = string.rep(" ", view.spacing.horizontal)
+  local linenr = top
+  for _, item in ipairs(content(view, view.details_node)) do
     local line = Line()
-    line:append(string.rep(" ", view.spacing.horizontal))
+    line:append(indent)
     -- An item is either { text, highlight } or { { { text, highlight }, ... } }.
     for _, segment in ipairs(type(item[1]) == "table" and item[1] or { item }) do
-      line:append(segment[1], segment[2])
+      -- Tool output such as a linter's error text can span several lines,
+      -- and a buffer line cannot hold a newline.
+      local parts = vim.split(segment[1], "\r?\n")
+      for part_index, part in ipairs(parts) do
+        if part_index > 1 then
+          linenr = linenr + 1
+          line:render(popup.bufnr, popup.ns_id, linenr)
+          line = Line()
+          line:append(indent)
+        end
+        line:append(part, segment[2])
+      end
     end
-    line:render(popup.bufnr, popup.ns_id, top + index)
+    linenr = linenr + 1
+    line:render(popup.bufnr, popup.ns_id, linenr)
   end
   vim.bo[popup.bufnr].modifiable = false
 end
