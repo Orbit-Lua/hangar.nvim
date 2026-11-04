@@ -167,7 +167,7 @@ Fields ~
 {linter} `(optional)` `(table<string, Hangar.Definition>)`
 {formatter} `(optional)` `(table<string, Hangar.Definition>)`
 {parser} `(optional)` `(table<string, Hangar.Definition>)`
-{package} `(optional)` `(table<string, Hangar.Definition>)`
+{["package"]} `(optional)` `(table<string, Hangar.Definition>)`
 {formatter_defaults} `(optional)` `(table<string, string[]>)` formatter order by filetype
 {linter_defaults} `(optional)` `(table<string, string[]>)` linter order by filetype
 

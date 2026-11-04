@@ -14,9 +14,10 @@
 ---@field linter? table<string, Hangar.Definition>
 ---@field formatter? table<string, Hangar.Definition>
 ---@field parser? table<string, Hangar.Definition>
----@field package? table<string, Hangar.Definition>
+---@field ["package"]? table<string, Hangar.Definition>
 ---@field formatter_defaults? table<string, string[]> formatter order by filetype
 ---@field linter_defaults? table<string, string[]> linter order by filetype
+-- LuaLS reads a bare `package` field name as the visibility keyword, so it is quoted.
 
 ---@tag hangar-definition
 ---@text
