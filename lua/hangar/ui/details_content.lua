@@ -1,4 +1,5 @@
 local tool_config = require("hangar.config")
+local render = require("hangar.ui.render")
 
 local function ui()
   return tool_config.get().ui
@@ -20,7 +21,7 @@ local installation_labels = {
 ---@return Hangar.DetailsItem[]
 local function health_lines(tool, category)
   local health = tool.health_status or {}
-  local toggleable = category ~= "parser" and category ~= "package"
+  local toggleable = render.toggleable(category)
   local enabled = "N/A"
   if toggleable then
     local value = health.enabled
@@ -105,7 +106,7 @@ local function tool_content(view, tool, node)
     "Filetypes: " .. table.concat(tool.meta.ft or {}, ", "),
     "Comment",
   })
-  if view:category() ~= "parser" and view:category() ~= "package" then
+  if render.toggleable(view:category()) then
     table.insert(lines, { "Enablement: Global", "Comment" })
   end
   if node and node.rank then
@@ -186,7 +187,7 @@ local function overview_content(view)
     { "", "Normal" },
     { "Legend", "Title" },
   }
-  for _, entry in ipairs(require("hangar.ui.render").legend()) do
+  for _, entry in ipairs(render.legend()) do
     table.insert(lines, {
       { { entry.icon, entry.highlight }, { "  " .. entry.label, "Normal" } },
     })

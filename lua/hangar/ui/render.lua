@@ -54,6 +54,14 @@ function M.define_highlights()
   )
 end
 
+---Report whether the tools of a category have an enabled state.
+---@param category Hangar.Category
+---@return boolean
+function M.toggleable(category)
+  local handler = require("hangar.category")[category]
+  return handler ~= nil and handler.capabilities.toggle
+end
+
 ---Prefix a line with the horizontal padding.
 function M.pad(view, line)
   local padded = Line()
@@ -189,7 +197,7 @@ local function hint_line(view, width)
   local category = view:category()
   local wanted = width < 50 and { "help", "scope", "close" }
     or { "toggle", "install", "details", "scope", "help", "close" }
-  if category == "parser" or category == "package" then
+  if not M.toggleable(category) then
     wanted = vim.tbl_filter(function(action)
       return action ~= "toggle"
     end, wanted)
@@ -299,10 +307,8 @@ function M.help(view)
     )
   end
   add("", "Normal")
-  add(
-    " Parsers and packages can be installed; they cannot be toggled.",
-    "Comment"
-  )
+  add(" Packages can be installed; they cannot be toggled.", "Comment")
+  add(" A disabled parser stops Tree-sitter for its language.", "Comment")
   add(" Formatter and linter priorities are saved per filetype.", "Comment")
   write(view, view.body, lines, view.spacing.vertical)
   view.tree = nil

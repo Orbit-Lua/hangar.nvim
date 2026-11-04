@@ -907,4 +907,32 @@ describe("Hangar Nui sessions", function()
       assert.equals("lsp", snapshots[#snapshots].category)
     end
   )
+
+  it("offers the toggle for parsers and not for packages", function()
+    vim.o.columns, vim.o.lines = 160, 45
+    local function footer()
+      return lines(buffer_for("HangarStatus"))
+    end
+    local function row(name)
+      return vim.api.nvim_buf_get_lines(body(), 0, -1, false)[line_for(name)]
+    end
+
+    tool.open()
+    press("5")
+    assert.equals("parser", snapshots[#snapshots].category)
+    assert.truthy(row("pyright"):find("On", 1, true))
+    assert.truthy(footer():find(" Space toggle", 1, true))
+    select("pyright")
+    press("K")
+    local detail_text = lines(buffer_for("HangarDetails"))
+    assert.truthy(detail_text:find("Enabled: On", 1, true))
+    assert.truthy(detail_text:find("Enablement: Global", 1, true))
+    press("<Esc>", buffer_for("HangarDetails"))
+    press("<Space>")
+    assert.equals("parser", operations[#operations].category)
+
+    press("6")
+    assert.truthy(row("pyright"):find("N/A", 1, true))
+    assert.is_nil(footer():find("toggle", 1, true))
+  end)
 end)

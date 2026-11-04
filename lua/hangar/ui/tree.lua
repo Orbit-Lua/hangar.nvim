@@ -51,9 +51,9 @@ local function append_tool(line, node, width, column_gap)
   local state = icon_state(tool, severity)
   local icon, icon_highlight = icons()[state], render.icon_highlights[state]
   local name = node.rank and (node.rank .. ". " .. tool.name) or tool.name
-  local enabled_text = (node.category == "parser" or node.category == "package")
-      and "N/A"
-    or (tool.enabled and "On" or "Off")
+  local enabled_text = render.toggleable(node.category)
+      and (tool.enabled and "On" or "Off")
+    or "N/A"
   local widths =
     render.column_widths(width, column_gap, math.max(1, width - line:width()))
   local gap = string.rep(" ", column_gap)
