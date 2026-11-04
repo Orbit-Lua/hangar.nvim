@@ -1,58 +1,82 @@
-package.path = vim.fn.getcwd() .. "/?.lua;" .. package.path
-local validate = require("scripts.tests.validate")
+-- Run each spec of a suite or one spec in its own Neovim process through
+-- telemetry.nvim. Each child validates its own results and exits nonzero on a
+-- failure; the parent checks only that the child reached its results.
+local cwd = vim.fn.getcwd()
+local telemetry_path = cwd .. "/.deps/telemetry.nvim"
+if vim.fn.isdirectory(telemetry_path) == 0 then
+  io.stderr:write("telemetry.nvim is missing; run just deps\n")
+  vim.cmd("cquit 1")
+end
+package.path = table.concat({
+  cwd .. "/?.lua",
+  telemetry_path .. "/lua/?.lua",
+  telemetry_path .. "/lua/?/init.lua",
+  package.path,
+}, ";")
+local telemetry = require("telemetry")
+
+---@param target string a spec file or a directory of `*_spec.lua` files
+---@return string[]
+local function discover(target)
+  local stat = assert(vim.uv.fs_stat(target), "missing test suite: " .. target)
+  if stat.type ~= "directory" then
+    return { target }
+  end
+
+  local paths = {}
+  for name, kind in vim.fs.dir(target) do
+    if kind == "file" and name:match("_spec%.lua$") then
+      paths[#paths + 1] = target .. "/" .. name
+    end
+  end
+  assert(#paths > 0, "test suite contains no specs: " .. target)
+  table.sort(paths)
+  return paths
+end
+
+---@param root string
+---@param index integer
+---@param path string
+---@return Telemetry.Suite
+local function suite(root, index, path)
+  local completion = root .. "/" .. index .. ".json"
+  return {
+    name = path,
+    argv = {
+      vim.v.progpath,
+      "--headless",
+      "--noplugin",
+      "-i",
+      "NONE",
+      "-u",
+      "scripts/tests/minimal.vim",
+      "-l",
+      "scripts/tests/run_spec.lua",
+      path,
+      completion,
+    },
+    timeout = 60000,
+    check = function()
+      if vim.fn.filereadable(completion) == 0 then
+        return path .. ": missing execution result"
+      end
+    end,
+  }
+end
+
 local root = vim.fn.tempname()
 vim.fn.mkdir(root, "p")
-local ok, err = pcall(function()
-  assert(arg[1], "provide a test suite or spec")
-  local paths = {}
-  local stat = assert(vim.uv.fs_stat(arg[1]), "missing test suite: " .. arg[1])
-  if stat.type == "directory" then
-    local scan = assert(vim.uv.fs_scandir(arg[1]))
-    while true do
-      local name, kind = vim.uv.fs_scandir_next(scan)
-      if not name then
-        break
-      end
-      if kind == "file" and name:match("_spec%.lua$") then
-        paths[#paths + 1] = arg[1] .. "/" .. name
-      end
-    end
-  else
-    paths[1] = arg[1]
+local ok, result = pcall(function()
+  local target = assert(arg[1], "provide a test suite or spec")
+  local suites = {}
+  for index, path in ipairs(discover(target)) do
+    suites[index] = suite(root, index, path)
   end
-  assert(#paths > 0, "test suite contains no specs: " .. arg[1])
-  table.sort(paths)
-  for index, path in ipairs(paths) do
-    local completion = root .. "/" .. index .. ".json"
-    local result = vim
-      .system({
-        vim.v.progpath,
-        "--headless",
-        "--noplugin",
-        "-i",
-        "NONE",
-        "-u",
-        "scripts/tests/minimal.vim",
-        "-l",
-        "scripts/tests/run_spec.lua",
-        path,
-        completion,
-      }, { text = true })
-      :wait(60000)
-    io.stdout:write(result.stdout or "")
-    io.stderr:write(result.stderr or "")
-    assert(result.code == 0, path .. ": test process failed or timed out")
-    assert(
-      vim.fn.filereadable(completion) == 1,
-      path .. ": missing execution result"
-    )
-    validate.check(
-      vim.json.decode(table.concat(vim.fn.readfile(completion), "\n"))
-    )
-  end
+  return telemetry.run({ title = target, suites = suites })
 end)
 vim.fn.delete(root, "rf")
 if not ok then
-  io.stderr:write(tostring(err) .. "\n")
+  io.stderr:write(tostring(result) .. "\n")
   vim.cmd("cquit 1")
 end
+telemetry.exit(result)

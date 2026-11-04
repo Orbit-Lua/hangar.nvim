@@ -29,6 +29,13 @@ function M.install(path)
     }
     assert(vim.fn.writefile({ vim.json.encode(summary) }, path) == 0)
     original(results)
+    -- telemetry judges a suite by its exit code, and Plenary exits 0 on a
+    -- runtime error or an empty spec.
+    local ok, err = pcall(M.check, summary)
+    if not ok then
+      io.stderr:write(tostring(err) .. "\n")
+      vim.cmd("1cquit")
+    end
   end
   busted.pending = function()
     error("skipped tests are not allowed", 0)
@@ -37,8 +44,8 @@ function M.install(path)
 end
 
 function M.check(result)
-  assert(result.passed > 0, "test spec executed no tests")
   assert(result.failed == 0 and result.errors == 0, "test spec failed")
+  assert(result.passed > 0, "test spec executed no tests")
   assert(
     not result.runtime_errors or #result.runtime_errors == 0,
     table.concat(result.runtime_errors or {}, "\n")

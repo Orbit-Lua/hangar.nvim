@@ -1,4 +1,4 @@
--- Clone the pinned test and help dependencies into .deps/ at their commits.
+-- Clone the test and help dependencies into .deps/.
 local dependencies = {
   {
     name = "plenary.nvim",
@@ -30,6 +30,12 @@ local dependencies = {
     url = "https://github.com/mfussenegger/nvim-dap.git",
     commit = "8aba1e3805438ee6f74207e0b7385ef951bb9945",
   },
+  -- The test reporter tracks its default branch, the stated exception to the
+  -- pinning rule in AGENTS.md.
+  {
+    name = "telemetry.nvim",
+    url = "https://github.com/Orbit-Lua/telemetry.nvim.git",
+  },
 }
 
 local function run(command)
@@ -49,14 +55,18 @@ for _, dependency in ipairs(dependencies) do
   if vim.fn.isdirectory(path .. "/.git") == 0 then
     run({ "git", "clone", "--filter=blob:none", dependency.url, path })
   end
-  run({ "git", "-C", path, "fetch", "--quiet", "origin", dependency.commit })
-  run({
-    "git",
-    "-C",
-    path,
-    "checkout",
-    "--quiet",
-    "--detach",
-    dependency.commit,
-  })
+  if dependency.commit then
+    run({ "git", "-C", path, "fetch", "--quiet", "origin", dependency.commit })
+    run({
+      "git",
+      "-C",
+      path,
+      "checkout",
+      "--quiet",
+      "--detach",
+      dependency.commit,
+    })
+  else
+    run({ "git", "-C", path, "pull", "--quiet", "--ff-only" })
+  end
 end
