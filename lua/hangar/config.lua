@@ -56,6 +56,55 @@ local options
 ---   and `margin` in cells.
 --- - `missing_package_policy`: `"auto"` or `"manual"`.
 
+-- The view installs these mappings and renders the same descriptions in help.
+local function default_mappings()
+  return {
+    {
+      keys = { "q", "<Esc>" },
+      action = "close",
+      description = "Close Hangar",
+    },
+    { keys = { "?", "g?" }, action = "help", description = "Toggle help" },
+    {
+      keys = { "s" },
+      action = "scope",
+      description = "Current buffer / all tool states",
+    },
+    { keys = { "<Tab>" }, action = "next", description = "Next category" },
+    {
+      keys = { "<S-Tab>" },
+      action = "previous",
+      description = "Previous category",
+    },
+    {
+      keys = { "<Space>" },
+      action = "toggle",
+      description = "Enable / disable selected tool",
+    },
+    {
+      keys = { "i" },
+      action = "install",
+      description = "Install selected tool",
+    },
+    {
+      keys = { "[" },
+      action = "up",
+      description = "Move formatter / linter earlier",
+    },
+    {
+      keys = { "]" },
+      action = "down",
+      description = "Move formatter / linter later",
+    },
+    {
+      keys = { "o", "<CR>", "za" },
+      action = "expand",
+      description = "Expand / collapse entry",
+    },
+    { keys = { "K" }, action = "details", description = "Show tool details" },
+  }
+end
+
 local function default_ui()
   return {
     categories = { "lsp", "dap", "linter", "formatter", "parser", "package" },
@@ -67,52 +116,7 @@ local function default_ui()
       parser = "Parser",
       package = "Package",
     },
-    -- The view installs these mappings and renders the same descriptions in help.
-    mappings = {
-      {
-        keys = { "q", "<Esc>" },
-        action = "close",
-        description = "Close Hangar",
-      },
-      { keys = { "?", "g?" }, action = "help", description = "Toggle help" },
-      {
-        keys = { "s" },
-        action = "scope",
-        description = "Current buffer / all tool states",
-      },
-      { keys = { "<Tab>" }, action = "next", description = "Next category" },
-      {
-        keys = { "<S-Tab>" },
-        action = "previous",
-        description = "Previous category",
-      },
-      {
-        keys = { "<Space>" },
-        action = "toggle",
-        description = "Enable / disable selected tool",
-      },
-      {
-        keys = { "i" },
-        action = "install",
-        description = "Install selected tool",
-      },
-      {
-        keys = { "[" },
-        action = "up",
-        description = "Move formatter / linter earlier",
-      },
-      {
-        keys = { "]" },
-        action = "down",
-        description = "Move formatter / linter later",
-      },
-      {
-        keys = { "o", "<CR>", "za" },
-        action = "expand",
-        description = "Expand / collapse entry",
-      },
-      { keys = { "K" }, action = "details", description = "Show tool details" },
-    },
+    mappings = default_mappings(),
     details = {
       max_messages = 8,
       width = 54,

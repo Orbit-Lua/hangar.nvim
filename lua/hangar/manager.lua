@@ -50,6 +50,29 @@ local function apply(category, name, operation, opts, callback)
   return true
 end
 
+local save_errors = { setting = "tool state", order = "tool order" }
+
+---Report a failed save of a setting or an order. A save that committed
+---without confirmation leaves the runtime unchanged and caches a failure.
+---@param kind "setting"|"order"
+---@return boolean failed
+local function save_failed(key, callback, kind, saved, save_error, committed)
+  if saved then
+    return false
+  end
+  if committed then
+    local message = kind
+      .. " saved; runtime unchanged: "
+      .. tostring(save_error)
+    failures[key] = message
+    done(callback, false, message)
+  else
+    local message = "could not save " .. save_errors[kind] .. ": "
+    done(callback, false, message .. tostring(save_error))
+  end
+  return true
+end
+
 local function valid_category(category)
   return type(category) == "string" and categories[category] ~= nil
 end
@@ -70,78 +93,10 @@ end
 ---@return table?
 function M.snapshot(opts)
   opts = opts or {}
-  local category = opts.category
-  if not valid_category(category) then
+  if not valid_category(opts.category) then
     return nil
   end
-
-  local source = opts.source or {}
-  local bufnr = source.bufnr or vim.api.nvim_get_current_buf()
-  local ft = source.filetype
-  if ft == nil and bufnr and vim.api.nvim_buf_is_valid(bufnr) then
-    ft = vim.bo[bufnr].filetype
-  end
-  local scope = opts.scope == "states" and "states" or "buffer"
-  local entries
-  if scope == "states" then
-    entries = data.tool_entries(category)
-  elseif ft and ft ~= "" then
-    entries = data.tool_entries(category, ft)
-  else
-    entries = {}
-  end
-  local snapshot = {
-    category = category,
-    tools = {},
-    groups = scope == "states" and data.build_ft_groups(category)
-      or (ft and ft ~= "" and data.build_ft_groups(category, ft) or {}),
-    summary = {
-      total = #entries,
-      enabled = 0,
-      disabled = 0,
-      installed = 0,
-      missing = 0,
-      attention = 0,
-    },
-  }
-  for _, entry in ipairs(entries) do
-    local health_status = data.health_status(
-      category,
-      entry.name,
-      entry.meta,
-      scope == "buffer" and ft or nil,
-      bufnr
-    )
-    local failure = failures[category .. ":" .. entry.name]
-    if failure then
-      health_status.reason = failure
-      health_status.label = "Apply failed"
-      health_status.severity = "DiagnosticError"
-      health_status.attention = true
-    end
-    table.insert(snapshot.tools, {
-      name = entry.name,
-      meta = vim.deepcopy(entry.meta),
-      status = health_status.label,
-      status_hl = health_status.severity,
-      enabled = state.is_enabled(category, entry.name),
-      health_status = health_status,
-    })
-    if health_status.attention then
-      snapshot.summary.attention = snapshot.summary.attention + 1
-    end
-    if health_status.enabled == true then
-      snapshot.summary.enabled = snapshot.summary.enabled + 1
-    elseif health_status.enabled == false then
-      snapshot.summary.disabled = snapshot.summary.disabled + 1
-    end
-    if health_status.installation == "installed" then
-      snapshot.summary.installed = snapshot.summary.installed + 1
-    elseif health_status.installation == "missing" then
-      snapshot.summary.missing = snapshot.summary.missing + 1
-    end
-  end
-  return snapshot
+  return data.snapshot(opts, failures)
 end
 
 ---Selected-tool facts are queried through the same interface as list snapshots.
@@ -158,6 +113,95 @@ function M.details(selection)
     }
   end
   return { logs = {}, diagnostics = { messages = {} } }
+end
+
+---@class Hangar.ToggleOperation
+---@field enabled boolean target state
+---@field finish fun(success: boolean, err?: string) completes once
+
+---Register a pending toggle. It inverts a pending toggle of the same tool,
+---which then completes as superseded.
+---@param on_complete fun(success: boolean, err?: string)?
+---@return Hangar.ToggleOperation
+local function begin_toggle(category, name, on_complete)
+  local key = category .. ":" .. name
+  local previous = pending[key]
+  local enabled
+  if previous then
+    enabled = not previous.enabled
+  else
+    enabled = not state.is_enabled(category, name)
+  end
+
+  local completed = false
+  local operation = { enabled = enabled }
+  operation.finish = function(success, err)
+    if completed then
+      return
+    end
+    completed = true
+    if pending[key] == operation then
+      pending[key] = nil
+    end
+    done(on_complete, success, err)
+  end
+  pending[key] = operation
+  if previous then
+    previous.finish(false, "superseded by a newer toggle")
+  end
+  return operation
+end
+
+---Persist the toggle, then apply it at runtime.
+---@param operation Hangar.ToggleOperation
+---@return boolean
+local function save_and_apply(category, name, handler, meta, operation)
+  local enabled, finish = operation.enabled, operation.finish
+  local key = category .. ":" .. name
+  if
+    save_failed(
+      key,
+      finish,
+      "setting",
+      state.set_enabled(category, name, enabled)
+    )
+  then
+    return false
+  end
+  return apply(
+    category,
+    name,
+    handler.apply_runtime,
+    { name = name, meta = meta, is_enabled = enabled },
+    finish
+  )
+end
+
+---Run `continue` once the Mason package is installed. The `auto` policy
+---installs a missing package first.
+---@param package_name string
+---@param finish fun(success: boolean, err?: string)
+---@param continue fun(): boolean
+---@return boolean
+local function with_package(package_name, finish, continue)
+  local installed, err = mason.package_status(package_name)
+  if installed == nil then
+    done(finish, false, err or "package status unavailable")
+    return false
+  elseif installed then
+    return continue()
+  elseif policy() == "manual" then
+    done(finish, false, package_name .. " is not installed")
+    return false
+  end
+
+  return mason.install(package_name, function(success, install_err)
+    if success then
+      continue()
+    else
+      done(finish, false, install_err or "package installation failed")
+    end
+  end)
 end
 
 ---@param selection Hangar.Selection
@@ -179,82 +223,17 @@ function M.toggle(selection, on_complete)
   end
 
   local key = category .. ":" .. name
-  local previous = pending[key]
-  local enabled
-  if previous then
-    enabled = not previous.enabled
-  else
-    enabled = not state.is_enabled(category, name)
-  end
-  local callback = on_complete
-  local completed = false
-  local operation = { enabled = enabled }
-  on_complete = function(success, err)
-    if completed then
-      return
-    end
-    completed = true
-    if pending[key] == operation then
-      pending[key] = nil
-    end
-    done(callback, success, err)
-  end
-  operation.finish = on_complete
-  pending[key] = operation
-  if previous then
-    previous.finish(false, "superseded by a newer toggle")
-  end
+  local operation = begin_toggle(category, name, on_complete)
   local function apply_toggle()
     if pending[key] ~= operation then
       return false
     end
-    local saved, save_error, committed =
-      state.set_enabled(category, name, enabled)
-    if not saved and committed then
-      local message = "setting saved; runtime unchanged: "
-        .. tostring(save_error)
-      failures[key] = message
-      done(on_complete, false, message)
-      return false
-    end
-    if not saved then
-      done(
-        on_complete,
-        false,
-        "could not save tool state: " .. tostring(save_error)
-      )
-      return false
-    end
-    return apply(
-      category,
-      name,
-      handler.apply_runtime,
-      { name = name, meta = meta, is_enabled = enabled },
-      on_complete
-    )
+    return save_and_apply(category, name, handler, meta, operation)
   end
 
-  if enabled and meta.mason then
-    local installed, err = mason.package_status(meta.mason)
-    if installed == false then
-      if policy() == "manual" then
-        local message = meta.mason .. " is not installed"
-        done(on_complete, false, message)
-        return false
-      end
-      return mason.install(meta.mason, function(success, install_err)
-        if success then
-          apply_toggle()
-        else
-          done(on_complete, false, install_err or "package installation failed")
-        end
-      end)
-    elseif installed == nil then
-      done(on_complete, false, err or "package status unavailable")
-      return false
-    end
+  if operation.enabled and meta.mason then
+    return with_package(meta.mason, operation.finish, apply_toggle)
   end
-
   return apply_toggle()
 end
 
@@ -359,19 +338,10 @@ function M.reorder(selection, on_complete)
   end
   names[index], names[index + direction] =
     names[index + direction], names[index]
-  local saved, save_error, committed = state.set_order(category, ft, names)
-  if not saved and committed then
-    local message = "order saved; runtime unchanged: " .. tostring(save_error)
-    failures[category .. ":" .. name] = message
-    done(on_complete, false, message)
-    return false
-  end
-  if not saved then
-    done(
-      on_complete,
-      false,
-      "could not save tool order: " .. tostring(save_error)
-    )
+  local key = category .. ":" .. name
+  if
+    save_failed(key, on_complete, "order", state.set_order(category, ft, names))
+  then
     return false
   end
   return apply(category, name, handler.apply_order, {

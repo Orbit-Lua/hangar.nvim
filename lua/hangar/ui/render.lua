@@ -1,5 +1,4 @@
 local Line = require("nui.line")
-local Tree = require("nui.tree")
 local str = require("hangar.util")
 local tool_config = require("hangar.config")
 
@@ -56,7 +55,7 @@ function M.define_highlights()
 end
 
 ---Prefix a line with the horizontal padding.
-local function pad(view, line)
+function M.pad(view, line)
   local padded = Line()
   padded:append(string.rep(" ", view.spacing.horizontal))
   padded:append(line)
@@ -64,11 +63,26 @@ local function pad(view, line)
 end
 
 ---Text width inside a window after horizontal padding on both sides.
-local function content_width(view, winid)
+function M.content_width(view, winid)
   return math.max(
     1,
     vim.api.nvim_win_get_width(winid) - 2 * view.spacing.horizontal
   )
+end
+
+---Widths of the tool, enabled and status columns.
+---@param width integer content width
+---@param column_gap integer
+---@param available integer cells left after the row prefix
+---@return { tool: integer, enabled: integer, status: integer }
+function M.column_widths(width, column_gap, available)
+  local enabled = math.min(10, math.max(7, math.floor(width * 0.14)))
+  local tool = math.max(
+    1,
+    math.min(math.floor(width * 0.48), available - enabled - 2 * column_gap - 1)
+  )
+  local status = math.max(1, available - tool - enabled - 2 * column_gap)
+  return { tool = tool, enabled = enabled, status = status }
 end
 
 local function write(view, popup, lines, top)
@@ -88,13 +102,19 @@ local function write(view, popup, lines, top)
     )
   end
   for index, line in ipairs(lines) do
-    pad(view, line):render(buffer, popup.ns_id, top + index)
+    M.pad(view, line):render(buffer, popup.ns_id, top + index)
   end
   vim.bo[buffer].modifiable = false
 end
 
-function M.chrome(view, snapshot)
-  local width = content_width(view, view.header.winid)
+local function separator(width)
+  local line = Line()
+  line:append(string.rep("─", width), "FloatBorder")
+  return line
+end
+
+---Category tabs: all labels, or only the current one in a narrow window.
+local function tab_line(view, width)
   local tabs = Line()
   local current = view.state.category
   local active_highlight = "HangarCategoryActive"
@@ -110,74 +130,63 @@ function M.chrome(view, snapshot)
       str.trunc(" · Tab switch", math.max(0, width - tabs:width())),
       "Comment"
     )
-  else
-    for index, category in ipairs(ui().categories) do
-      local selected = index == current
-      tabs:append(
-        " " .. index .. " " .. ui().labels[category] .. " ",
-        selected and active_highlight or "HangarCategoryInactive"
-      )
-      tabs:append(" ", "Normal")
-    end
+    return tabs
   end
+
+  for index, category in ipairs(ui().categories) do
+    local selected = index == current
+    tabs:append(
+      " " .. index .. " " .. ui().labels[category] .. " ",
+      selected and active_highlight or "HangarCategoryInactive"
+    )
+    tabs:append(" ", "Normal")
+  end
+  return tabs
+end
+
+---Scope, tool count, source buffer and attention count.
+local function context_line(view, snapshot, width)
   local context = Line()
+  local function add(text, highlight)
+    context:append(
+      str.trunc(text, math.max(0, width - context:width())),
+      highlight
+    )
+  end
+
   local buffer_scope = view.state.scope == "buffer"
-  context:append(
-    str.trunc(buffer_scope and " Buffer" or " All", width),
-    "Title"
-  )
-  context:append(
-    str.trunc(
-      " · " .. #snapshot.tools .. " tools",
-      math.max(0, width - context:width())
-    ),
-    "Normal"
-  )
+  add(buffer_scope and " Buffer" or " All", "Title")
+  add(" · " .. #snapshot.tools .. " tools", "Normal")
   if buffer_scope then
     local source = view.source
     local filename = source.name == "" and "[No Name]"
       or vim.fs.basename(source.name)
     local filetype = source.filetype == "" and "no filetype" or source.filetype
-    context:append(
-      str.trunc(
-        " · " .. filetype .. " · " .. filename,
-        math.max(0, width - context:width())
-      ),
-      "Comment"
-    )
+    add(" · " .. filetype .. " · " .. filename, "Comment")
   end
   if snapshot.summary and (snapshot.summary.attention or 0) > 0 then
-    context:append(
-      str.trunc(
-        " · " .. snapshot.summary.attention .. " need attention",
-        math.max(0, width - context:width())
-      ),
+    add(
+      " · " .. snapshot.summary.attention .. " need attention",
       "DiagnosticWarn"
     )
   end
-  local function separator()
-    local line = Line()
-    line:append(string.rep("─", width), "FloatBorder")
-    return line
-  end
-  local header = { tabs, context }
-  -- Normal height adds the column labels and a separator; compact keeps two rows.
-  if vim.api.nvim_win_get_height(view.header.winid) > 2 then
-    table.insert(header, M.columns(width, view.spacing.column_gap))
-    table.insert(header, separator())
-  end
-  write(view, view.header, header)
-  local hints = Line()
-  local category = view:category()
-  -- A hint names the first key of a configured action; an unbound action has
-  -- no hint.
-  local function hint(action)
-    for _, mapping in ipairs(ui().mappings) do
-      if mapping.action == action and mapping.keys[1] then
-        return { (mapping.keys[1]:gsub("^<(.*)>$", "%1")), action }
-      end
+  return context
+end
+
+---A hint names the first key of a configured action; an unbound action has
+---no hint.
+---@return { [1]: string, [2]: string }?
+local function hint(action)
+  for _, mapping in ipairs(ui().mappings) do
+    if mapping.action == action and mapping.keys[1] then
+      return { (mapping.keys[1]:gsub("^<(.*)>$", "%1")), action }
     end
   end
+end
+
+---Key hints of the current category that fit the width.
+local function hint_line(view, width)
+  local category = view:category()
   local wanted = width < 50 and { "help", "scope", "close" }
     or { "toggle", "install", "details", "scope", "help", "close" }
   if category == "parser" or category == "package" then
@@ -198,6 +207,8 @@ function M.chrome(view, snapshot)
   then
     table.insert(actions, 1, { up[1] .. "/" .. down[1], "priority" })
   end
+
+  local hints = Line()
   for _, action in ipairs(actions) do
     local text = " " .. action[1] .. " " .. action[2]
     if hints:width() + vim.fn.strdisplaywidth(text) > width then
@@ -206,222 +217,26 @@ function M.chrome(view, snapshot)
     hints:append(" " .. action[1], "Special")
     hints:append(" " .. action[2], "Comment")
   end
+  return hints
+end
+
+---Render the header and the footer of the view.
+function M.chrome(view, snapshot)
+  local width = M.content_width(view, view.header.winid)
+  local header = { tab_line(view, width), context_line(view, snapshot, width) }
+  -- Normal height adds the column labels and a separator; compact keeps two rows.
+  if vim.api.nvim_win_get_height(view.header.winid) > 2 then
+    table.insert(header, M.columns(width, view.spacing.column_gap))
+    table.insert(header, separator(width))
+  end
+  write(view, view.header, header)
+
   local footer = {}
   if vim.api.nvim_win_get_height(view.footer.winid) > 1 then
-    table.insert(footer, separator())
+    table.insert(footer, separator(width))
   end
-  table.insert(footer, hints)
+  table.insert(footer, hint_line(view, width))
   write(view, view.footer, footer)
-end
-
-local function node_line(node, width, column_gap)
-  local line = Line()
-  local indent = string.rep("  ", node:get_depth() - 1)
-  local arrow = node:has_children()
-      and (node:is_expanded() and icons().expanded or icons().collapsed)
-    or " "
-  line:append(
-    indent .. arrow .. " ",
-    node.kind == "detail" and "Comment" or "Title"
-  )
-  if node.kind == "group" then
-    line:append(
-      str.trunc(
-        node.filetype .. " (" .. #node.names .. " tools)",
-        math.max(1, width - line:width())
-      ),
-      "Title"
-    )
-  elseif node.kind == "detail" then
-    line:append(
-      str.trunc(node.text, math.max(1, width - line:width())),
-      "Comment"
-    )
-  elseif node.kind == "empty" then
-    line:append(
-      str.trunc(node.text, math.max(1, width - line:width())),
-      "Comment"
-    )
-  else
-    local tool = node.tool
-    local health = tool.health_status
-    local status = health and health.label or tool.status or "Unknown"
-    local severity = health and health.severity or tool.status_hl
-    local state = tool.enabled and "enabled" or "disabled"
-    if health and health.installation == "installing" then
-      state = "installing"
-    elseif
-      health
-      and health.enabled == false
-      and severity ~= "DiagnosticError"
-    then
-      state = "disabled"
-    elseif
-      health
-      and (
-        health.installation == "unknown"
-        or health.installation == "unavailable"
-      )
-    then
-      state = "unknown"
-    elseif severity == "DiagnosticError" then
-      state = "error"
-    elseif severity == "DiagnosticWarn" then
-      state = "warning"
-    elseif tool.enabled and health and health.runtime == "Idle" then
-      state = "idle"
-    elseif tool.enabled and severity == "DiagnosticInfo" then
-      state = "info"
-    end
-    local icon, icon_highlight = icons()[state], M.icon_highlights[state]
-    local name = node.rank and (node.rank .. ". " .. tool.name) or tool.name
-    local enabled_text = (
-      node.category == "parser" or node.category == "package"
-    )
-        and "N/A"
-      or (tool.enabled and "On" or "Off")
-    local enabled_width = math.min(10, math.max(7, math.floor(width * 0.14)))
-    local available = math.max(1, width - line:width())
-    local gap = string.rep(" ", column_gap)
-    local tool_width = math.max(
-      1,
-      math.min(
-        math.floor(width * 0.48),
-        available - enabled_width - 2 * column_gap - 1
-      )
-    )
-    local status_width =
-      math.max(1, available - tool_width - enabled_width - 2 * column_gap)
-    -- The icon is its own chunk, so its state highlight stays separate.
-    local icon_text = icon .. " "
-    local name_width =
-      math.max(1, tool_width - vim.fn.strdisplaywidth(icon_text))
-    line:append(icon_text, icon_highlight)
-    line:append(
-      str.rpad(str.trunc(name, name_width), name_width),
-      tool.enabled and "Normal" or "Comment"
-    )
-    line:append(
-      gap .. str.rpad(str.trunc(enabled_text, enabled_width), enabled_width),
-      tool.enabled and "Normal" or "Comment"
-    )
-    line:append(gap .. str.trunc(status, status_width), severity)
-  end
-  return line
-end
-
-function M.tree(view, snapshot)
-  local by_name = {}
-  for _, tool in ipairs(snapshot.tools) do
-    by_name[tool.name] = tool
-  end
-  local nodes = {}
-  local category = snapshot.category
-  local function tool_node(tool, filetype, rank)
-    local id = category
-      .. ":"
-      .. tool.name
-      .. (filetype and ":" .. filetype or "")
-    local node = Tree.Node({
-      id = id,
-      kind = "tool",
-      category = category,
-      tool = tool,
-      filetype = filetype,
-      rank = rank,
-    })
-    if view.state.expanded[id] then
-      node:expand()
-    end
-    return node
-  end
-  if category == "formatter" or category == "linter" then
-    if view.state.scope == "buffer" then
-      for _, group in ipairs(snapshot.groups) do
-        for rank, name in ipairs(group.names) do
-          if by_name[name] then
-            table.insert(nodes, tool_node(by_name[name], group.ft, rank))
-          end
-        end
-      end
-    else
-      for _, group in ipairs(snapshot.groups) do
-        local children = {}
-        for rank, name in ipairs(group.names) do
-          if by_name[name] then
-            table.insert(children, tool_node(by_name[name], group.ft, rank))
-          end
-        end
-        local id = category .. ":ft:" .. group.ft
-        local node = Tree.Node({
-          id = id,
-          kind = "group",
-          filetype = group.ft,
-          names = group.names,
-        }, children)
-        if view.state.expanded[id] then
-          node:expand()
-        end
-        table.insert(nodes, node)
-      end
-    end
-  else
-    for _, tool in ipairs(snapshot.tools) do
-      table.insert(nodes, tool_node(tool))
-    end
-  end
-  if #snapshot.tools == 0 then
-    table.insert(
-      nodes,
-      Tree.Node({
-        id = category .. ":empty",
-        kind = "empty",
-        text = "No managed tools for this "
-          .. (
-            view.state.scope == "buffer" and "buffer filetype." or "category."
-          ),
-      })
-    )
-  end
-  vim.bo[view.body.bufnr].readonly = false
-  vim.bo[view.body.bufnr].modifiable = true
-  vim.api.nvim_buf_clear_namespace(view.body.bufnr, view.body.ns_id, 0, -1)
-  vim.api.nvim_buf_set_lines(view.body.bufnr, 0, -1, false, {})
-  local width = content_width(view, view.body.winid)
-  local vertical = view.spacing.vertical
-  if vertical > 0 then
-    vim.api.nvim_buf_set_lines(
-      view.body.bufnr,
-      0,
-      -1,
-      false,
-      vim.fn["repeat"]({ "" }, vertical)
-    )
-  end
-  view.tree = Tree({
-    bufnr = view.body.bufnr,
-    ns_id = view.body.ns_id,
-    nodes = nodes,
-    get_node_id = function(node)
-      return node.id
-    end,
-    prepare_node = function(node)
-      return pad(view, node_line(node, width, view.spacing.column_gap))
-    end,
-  })
-  view.tree:render(vertical + 1)
-  if vertical > 0 then
-    -- Tree rendering restores the buffer's read-only state.
-    vim.bo[view.body.bufnr].modifiable = true
-    vim.api.nvim_buf_set_lines(
-      view.body.bufnr,
-      -1,
-      -1,
-      false,
-      vim.fn["repeat"]({ "" }, vertical)
-    )
-  end
-  vim.bo[view.body.bufnr].modifiable = false
 end
 
 ---Column labels aligned with tool rows, which start after a two-cell prefix.
@@ -429,20 +244,10 @@ end
 function M.columns(width, column_gap)
   local line = Line()
   local gap = string.rep(" ", column_gap)
-  local enabled_width = math.min(10, math.max(7, math.floor(width * 0.14)))
-  local available = math.max(1, width - 2)
-  local tool_width = math.max(
-    1,
-    math.min(
-      math.floor(width * 0.48),
-      available - enabled_width - 2 * column_gap - 1
-    )
-  )
-  local status_width =
-    math.max(1, available - tool_width - enabled_width - 2 * column_gap)
-  line:append("  " .. str.rpad("Tool", tool_width), "Title")
-  line:append(gap .. str.rpad("Enabled", enabled_width), "Title")
-  line:append(gap .. str.trunc("Status", status_width), "Title")
+  local widths = M.column_widths(width, column_gap, math.max(1, width - 2))
+  line:append("  " .. str.rpad("Tool", widths.tool), "Title")
+  line:append(gap .. str.rpad("Enabled", widths.enabled), "Title")
+  line:append(gap .. str.trunc("Status", widths.status), "Title")
   return line
 end
 
@@ -467,7 +272,7 @@ function M.legend()
 end
 
 function M.help(view)
-  local width = content_width(view, view.body.winid)
+  local width = M.content_width(view, view.body.winid)
   local lines = {}
   local function add(text, highlight)
     local line = Line()

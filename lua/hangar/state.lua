@@ -47,6 +47,50 @@ local function is_string_list(value)
   return #value == vim.tbl_count(value)
 end
 
+---Drop duplicates and registry names whose `ft` lacks the filetype. A name
+---that the registry does not list comes from a backend that may load later,
+---so it stays; the order only ranks names that exist at runtime.
+---@param category "formatter"|"linter"
+---@param ft string
+---@param order string[]
+---@return string[]
+local function normalize_order(category, ft, order)
+  local registry = config.get().registry[category]
+  local seen, normalized = {}, {}
+  for _, name in ipairs(order) do
+    local meta = registry[name]
+    if (not meta or vim.tbl_contains(meta.ft or {}, ft)) and not seen[name] then
+      seen[name] = true
+      table.insert(normalized, name)
+    end
+  end
+  return normalized
+end
+
+---@param state table
+---@param key "formatter_order"|"linter_order"
+---@param saved table
+local function merge_orders(state, key, saved)
+  local category = key:gsub("_order$", "")
+  for ft, order in pairs(saved) do
+    if type(ft) == "string" and is_string_list(order) then
+      state[key][ft] = normalize_order(category, ft, order)
+    end
+  end
+end
+
+---Keep a choice for a tool that the registry does not list: the backends
+---discover tools at runtime.
+---@param target table<string, boolean>
+---@param saved table
+local function merge_enabled(target, saved)
+  for name, enabled in pairs(saved) do
+    if type(name) == "string" and type(enabled) == "boolean" then
+      target[name] = enabled
+    end
+  end
+end
+
 ---@param opts? { path: string? }
 function M.load(opts)
   opts = opts or {}
@@ -62,38 +106,12 @@ function M.load(opts)
   end
 
   local state = build_defaults()
-  for cat, val in pairs(decoded) do
-    if type(val) == "table" then
-      if cat == "formatter_order" or cat == "linter_order" then
-        for ft, order in pairs(val) do
-          if type(ft) == "string" and is_string_list(order) then
-            local category = cat:gsub("_order$", "")
-            local seen, normalized = {}, {}
-            -- A registry entry must support the filetype. A name that the
-            -- registry does not list comes from a backend that may load later,
-            -- so it stays; the order only ranks names that exist at runtime.
-            for _, name in ipairs(order) do
-              local meta = config.get().registry[category][name]
-              if
-                (not meta or vim.tbl_contains(meta.ft or {}, ft))
-                and not seen[name]
-              then
-                seen[name] = true
-                table.insert(normalized, name)
-              end
-            end
-            state[cat][ft] = normalized
-          end
-        end
-      elseif state[cat] then
-        -- Keep a choice for a tool that the registry does not list: the
-        -- backends discover tools at runtime.
-        for name, enabled in pairs(val) do
-          if type(name) == "string" and type(enabled) == "boolean" then
-            state[cat][name] = enabled
-          end
-        end
-      end
+  for key, saved in pairs(decoded) do
+    local is_order = key == "formatter_order" or key == "linter_order"
+    if type(saved) == "table" and is_order then
+      merge_orders(state, key, saved)
+    elseif type(saved) == "table" and state[key] then
+      merge_enabled(state[key], saved)
     end
   end
   return state
