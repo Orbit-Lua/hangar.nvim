@@ -1,7 +1,8 @@
 -- Generate doc/hangar.txt with mini.doc from the public annotations in
--- lua/hangar/init.lua and lua/hangar/config.lua. With --check, generate into a
--- temporary directory instead, fail when the result differs from the tracked
--- file, and fail when :helptags reports an error such as a duplicate tag.
+-- lua/hangar/init.lua, config.lua and registry.lua. With --check, generate
+-- into a temporary directory instead, fail when the result differs from the
+-- tracked file, and fail when :helptags reports an error such as a duplicate
+-- tag.
 local root = vim.fn.getcwd()
 local check = arg[1] == "--check"
 local generator = root .. "/.deps/mini.doc"
@@ -34,6 +35,7 @@ local output = directory .. "/hangar.txt"
 doc.generate({
   root .. "/lua/hangar/init.lua",
   root .. "/lua/hangar/config.lua",
+  root .. "/lua/hangar/registry.lua",
 }, output, { hooks = hooks })
 
 if check then

@@ -247,8 +247,8 @@ function M.set_logs(name, entries)
   logs[name] = entries
 end
 
----Fixture options: the extracted registry, its activation, the test state
----path and the recorded linter logs.
+---Fixture options: the extracted registry, the test state path and the
+---recorded linter logs.
 ---@return Hangar.Options
 function M.options()
   return {
@@ -257,14 +257,6 @@ function M.options()
       return vim.g.hangar_state_path
     end,
     adapters = {
-      activation = {
-        formatter = function()
-          return require("tests.fixtures.activation").formatters_by_ft
-        end,
-        linter = function()
-          return require("tests.fixtures.activation").linters_by_ft
-        end,
-      },
       linter = {
         logs = function(name)
           return logs[name] or {}
@@ -274,11 +266,16 @@ function M.options()
   }
 end
 
----Configure hangar with the fixture options, replacing top-level options.
----Call it again after resetting `hangar.*` modules.
+---Configure hangar with the fixture options, replacing top-level options, and
+---record the fixture activation through `hangar.filter`. Call it again after
+---resetting `hangar.*` modules.
 ---@param overrides? table
 function M.configure(overrides)
-  require("hangar").setup(vim.tbl_extend("force", M.options(), overrides or {}))
+  local hangar = require("hangar")
+  hangar.setup(vim.tbl_extend("force", M.options(), overrides or {}))
+  local activation = require("tests.fixtures.activation")
+  hangar.filter("formatter", activation.formatters_by_ft)
+  hangar.filter("linter", activation.linters_by_ft)
 end
 
 function M.cleanup_all()

@@ -157,7 +157,6 @@ end
 M.package = {
   ["typescript-language-server"] = {
     source = "mason",
-    role = "dependency",
     note = "provides the tsserver runtime used by the TypeScript LSP config",
   },
 }

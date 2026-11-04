@@ -168,10 +168,10 @@ describe("hangar.data", function()
   )
 
   it("reports runtime wiring for the requested scope", function()
-    local activation = package.loaded["tests.fixtures.activation"]
-    package.loaded["tests.fixtures.activation"] = {
-      formatters_by_ft = { lua = { "stylua" }, python = { "stylua" } },
-    }
+    require("hangar").filter(
+      "formatter",
+      { lua = { "stylua" }, python = { "stylua" } }
+    )
     package.loaded.conform = { formatters_by_ft = { lua = { "stylua" } } }
     mason.package_status = function()
       return true
@@ -182,7 +182,6 @@ describe("hangar.data", function()
       labels[#labels + 1] =
         data.health_status("formatter", "stylua", meta, filetype or nil).label
     end
-    package.loaded["tests.fixtures.activation"] = activation
     assert.same({
       "Configured",
       "Not configured",

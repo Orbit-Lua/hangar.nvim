@@ -328,15 +328,16 @@ describe("hangar.manager", function()
     "rejects category capabilities without mutating persisted or runtime state",
     function()
       local called, succeeded
-      assert.is_false(
-        manager.toggle({ category = "parser", name = "lua" }, function(ok)
-          called = true
-          succeeded = ok
-        end)
-      )
+      assert.is_false(manager.toggle({
+        category = "package",
+        name = "typescript-language-server",
+      }, function(ok)
+        called = true
+        succeeded = ok
+      end))
       assert.is_true(called)
       assert.is_false(succeeded)
-      assert.is_true(state.is_enabled("parser", "lua"))
+      assert.is_nil(state.get().package)
     end
   )
 

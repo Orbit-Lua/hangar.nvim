@@ -15,6 +15,21 @@ local dependencies = {
     url = "https://github.com/nvim-mini/mini.doc.git",
     commit = "54bb11880f2208a059a8d2564c3f4b586b78e044",
   },
+  {
+    name = "conform.nvim",
+    url = "https://github.com/stevearc/conform.nvim.git",
+    commit = "016802de402556da54c36bd7359b441266b01cdd",
+  },
+  {
+    name = "nvim-lint",
+    url = "https://github.com/mfussenegger/nvim-lint.git",
+    commit = "f6230a5c06ba59e6059c14637f1dbe29a7978b9b",
+  },
+  {
+    name = "nvim-dap",
+    url = "https://github.com/mfussenegger/nvim-dap.git",
+    commit = "8aba1e3805438ee6f74207e0b7385ef951bb9945",
+  },
 }
 
 local function run(command)

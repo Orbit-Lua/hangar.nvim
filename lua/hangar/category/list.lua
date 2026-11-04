@@ -9,7 +9,7 @@ local M = {}
 ---@return Hangar.CategoryHandler
 function M.new(spec)
   local order = require("hangar.order")
-  local config = require("hangar.config")
+  local catalog = require("hangar.catalog")
   local activation = require("hangar.activation")
 
   local adapter = {
@@ -30,17 +30,17 @@ function M.new(spec)
   end
 
   ---Replace the runtime names of a list entry and keep its option keys,
-  ---such as conform's `stop_after_first`.
-  local function rewrite(entry, names)
-    local result = vim.deepcopy(names)
-    if type(entry) == "table" then
-      for key, value in pairs(entry) do
-        if type(key) ~= "number" then
-          result[key] = value
-        end
+  ---such as conform's `stop_after_first`. The new entry stands for the
+  ---activation names of its filetype and the names that the old entry had.
+  local function rewrite(entry, names, ft)
+    local initial =
+      vim.deepcopy((activation.get(spec.category) or {})[ft] or {})
+    for _, name in ipairs(activation.names(entry) or {}) do
+      if not vim.tbl_contains(initial, name) then
+        table.insert(initial, name)
       end
     end
-    return result
+    return activation.rewrite(entry, names, initial)
   end
 
   function adapter.apply_runtime(opts)
@@ -80,7 +80,7 @@ function M.new(spec)
           local names = order.from_runtime(spec.category, list)
           local ordered = order.enabled_names_for_ft(spec.category, ft, names)
           module[spec.field][ft] =
-            rewrite(entry, order.to_runtime(spec.category, ordered))
+            rewrite(entry, order.to_runtime(spec.category, ordered), ft)
         end
       end
     end
@@ -101,7 +101,7 @@ function M.new(spec)
     end
     local old = activation.names(entry) or {}
     local known = {}
-    for name, meta in pairs(config.get().registry[spec.category] or {}) do
+    for name, meta in pairs(catalog.entries(spec.category)) do
       if vim.tbl_contains(meta.ft or {}, opts.ft) then
         known[meta.runtime_name or name] = true
       end
@@ -114,7 +114,7 @@ function M.new(spec)
         table.insert(result, name)
       end
     end
-    module[spec.field][opts.ft] = rewrite(entry, result)
+    module[spec.field][opts.ft] = rewrite(entry, result, opts.ft)
   end
 
   ---The special backend key ("*" or "_") that still lists a tool, if any.

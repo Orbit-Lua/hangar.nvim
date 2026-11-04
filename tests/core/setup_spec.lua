@@ -14,23 +14,14 @@ describe("Hangar setup", function()
     return vim.json.decode(table.concat(vim.fn.readfile(path), "\n"))
   end
 
+  ---DAP runtime calls, and the error that the next one returns. A DAP toggle
+  ---has no runtime work of its own, so the specs inject its failures here.
+  ---@type { calls: table[], result: true|string }
+  local runtime
+
   ---Options with a fixture registry that shares no tool with the test registry.
   local function fixture(root, overrides)
-    local runtime = { enabled = {}, calls = {}, result = true }
-    runtime.module = {
-      apply_adapter = function(_, name, enabled, options)
-        table.insert(runtime.calls, { name, enabled, options })
-        if runtime.result ~= true then
-          return false, runtime.result
-        end
-        runtime.enabled[name] = enabled
-        return true
-      end,
-      adapter_status = function(_, name)
-        return runtime.enabled[name] == false and "disabled" or "registered",
-          "DiagnosticOk"
-      end,
-    }
+    runtime = { calls = {}, result = true }
     local options = {
       registry = {
         lsp = {},
@@ -51,24 +42,6 @@ describe("Hangar setup", function()
         return root .. "/tools.json"
       end,
       border = "single",
-      adapters = {
-        dap = {
-          runtime = function()
-            return runtime.module
-          end,
-          options = function()
-            return { fixture = true }
-          end,
-        },
-        activation = {
-          formatter = function()
-            return { fixturelang = { "fixture_fmt" } }
-          end,
-          linter = function()
-            return {}
-          end,
-        },
-      },
     }
     return vim.tbl_extend("force", options, overrides or {}), runtime
   end
@@ -155,6 +128,16 @@ describe("Hangar setup", function()
   before_each(function()
     vim.opt.runtimepath:append(test.plugin_path("nui.nvim"))
     reset_modules()
+    runtime = { calls = {}, result = true }
+    local handler = require("hangar.category.dap")
+    local apply_runtime = handler.apply_runtime
+    handler.apply_runtime = function(opts)
+      table.insert(runtime.calls, { opts.name, opts.is_enabled })
+      if runtime.result ~= true then
+        return false, runtime.result
+      end
+      return apply_runtime(opts)
+    end
     package.loaded.dap = { adapters = {}, configurations = {} }
     package.loaded.conform = { formatters_by_ft = {} }
     vim.notify = function() end
@@ -173,7 +156,7 @@ describe("Hangar setup", function()
 
   it("runs views, state and adapters from injected options only", function()
     local root = test.temp_dir("tool-setup-injected")
-    local options, runtime = fixture(root)
+    local options = fixture(root)
     setup(options)
     local manager = require("hangar.manager")
 
@@ -203,10 +186,10 @@ describe("Hangar setup", function()
     assert.is_true(
       manager.toggle({ category = "dap", name = "fixture_dbg" }, record)
     )
-    assert.same({ "fixture_dbg", false, { fixture = true } }, runtime.calls[1])
-    assert.is_false(runtime.enabled.fixture_dbg)
+    assert.same({ "fixture_dbg", false }, runtime.calls[1])
 
-    -- Activation comes from the injected provider, not the backend list.
+    -- Activation comes from the filter record, not the backend list.
+    require("hangar").filter("formatter", { fixturelang = { "fixture_fmt" } })
     manager.toggle({ category = "formatter", name = "fixture_fmt" }, record)
     manager.toggle({ category = "formatter", name = "fixture_fmt" }, record)
     assert.same(
@@ -237,7 +220,7 @@ describe("Hangar setup", function()
     function()
       local first = test.temp_dir("tool-setup-first")
       local second = test.temp_dir("tool-setup-second")
-      local options, runtime = fixture(first)
+      local options = fixture(first)
       setup(options)
       runtime.result = "adapter boom"
       local manager = require("hangar.manager")
@@ -341,4 +324,48 @@ describe("Hangar setup", function()
       setup((fixture(test.temp_dir("tool-setup-throw-next"))))
     end
   )
+
+  it("accepts setup with no options and browses every category", function()
+    local hangar = require("hangar")
+    hangar.setup()
+    local registry = require("hangar.config").get().registry
+    for _, category in ipairs(require("hangar.config").categories) do
+      assert.are.same({}, registry[category])
+    end
+  end)
+
+  it("rejects an invalid registry with an error that names its path", function()
+    local hangar = require("hangar")
+    local cases = {
+      { { lspp = {} }, "registry.lspp is not a registry category" },
+      {
+        { lsp = { lua_ls = { sorce = "mason" } } },
+        "registry.lsp.lua_ls.sorce is not a registry field",
+      },
+      {
+        { linter = { ["markdownlint-cli2"] = { source = "npm" } } },
+        'registry.linter["markdownlint-cli2"].source must be',
+      },
+      {
+        { formatter = { stylua = { ft = { "lua", 3 } } } },
+        "registry.formatter.stylua.ft[2] must be a string",
+      },
+      {
+        { dap = { python = { mason = false } } },
+        "python.mason must be a string",
+      },
+      {
+        { formatter_defaults = { lua = "stylua" } },
+        "registry.formatter_defaults.lua must be a list of strings",
+      },
+    }
+    for _, case in ipairs(cases) do
+      local ok, err = pcall(hangar.setup, { registry = case[1] })
+      assert.is_false(ok)
+      assert.truthy(
+        tostring(err):find(case[2], 1, true),
+        "expected " .. case[2] .. ", got " .. tostring(err)
+      )
+    end
+  end)
 end)

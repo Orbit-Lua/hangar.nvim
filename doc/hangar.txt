@@ -14,16 +14,17 @@ Close the open view. Running operations continue.
 
 ------------------------------------------------------------------------------
                                                                 *hangar.setup()*
-                             `hangar.setup`({opts})
+                            `hangar.setup`({{opts}})
 
-Validate {opts} and fill the defaults. Only `registry` is required. See
+Validate {opts} and fill the defaults. {opts} is optional. See
 |hangar-options|.
 
-A repeated call replaces the options, drops cached state and failures, and
-closes the open view. It raises an error while a toggle or an installation
+Setup installs the integrations (|hangar-integrations|). A repeated call
+replaces the options, drops cached state and failures, and closes the open
+view. It raises an error while a toggle or an installation
 runs.
 Parameters ~
-{opts} `(Hangar.Options)`
+{opts} `(optional)` `(Hangar.Options)`
 
 ------------------------------------------------------------------------------
                                                                *hangar.filter()*
@@ -91,45 +92,44 @@ define it in your color scheme or configuration.
 
 ==============================================================================
 ------------------------------------------------------------------------------
-                                                               *hangar-registry*
-
-The registry maps logical tool names to definitions, by category: `lsp`,
-`dap`, `linter`, `formatter`, `parser` and `package`. `formatter_defaults`
-and `linter_defaults` set the default order by filetype.
-Class ~
-{Hangar.Definition}
-Fields ~
-{ft} `(string[]?)`
-{mason} `(string?)`
-{runtime_name} `(string?)`
-{note} `(string?)`
-{source} `(string?)`
-
-------------------------------------------------------------------------------
                                                                 *hangar-options*
 
-Options of |hangar.setup()|.
+Options of |hangar.setup()|. Every option is optional.
 Class ~
 {Hangar.Options}
 Fields ~
-{registry} `(table<string, table>)` logical tools by category, plus `<category>_defaults` orders
+{registry} `(optional)` `(Hangar.Registry)` install mapping and metadata (|hangar-registry|)
 {defaults} `(optional)` `(fun(): { formatter?: table<string, string[]>, linter?: table<string, string[]> })` user default orders
 {state_path} `(optional)` `(fun(): string)`
 {ui} `(optional)` `(table)` view options (|hangar-ui|)
 {icons} `(optional)` `(table<string, string>)`
 {border} `(optional)` `(any)`
 {adapters} `(optional)` `(Hangar.Adapters)`
+{integrations} `(optional)` `(Hangar.Integrations)` backends that hangar gates (|hangar-integrations|)
+
+------------------------------------------------------------------------------
+                                                           *hangar-integrations*
+
+Backends that hangar gates from saved state. Each one defaults to `true`;
+set it to `false` to leave that backend alone. Hangar applies the conform,
+nvim-lint and nvim-dap integrations when the plugin loads, so hangar must be
+set up before them.
+Class ~
+{Hangar.Integrations}
+Fields ~
+{lsp} `(optional)` `(boolean)` `vim.lsp.enable` and clients of disabled servers
+{dap} `(optional)` `(boolean)` debug sessions of disabled adapters
+{conform} `(optional)` `(boolean)` conform `formatters_by_ft`
+{lint} `(optional)` `(boolean)` nvim-lint `linters_by_ft`
+{treesitter} `(optional)` `(boolean)` Tree-sitter highlighting of disabled parsers
 
 ------------------------------------------------------------------------------
                                                                *hangar-adapters*
 
-Owners that hangar calls for runtime changes. Without `activation`, hangar
-uses the lists that |hangar.filter()| records, or else the backend lists.
+Owners that hangar calls for runtime changes.
 Class ~
 {Hangar.Adapters}
 Fields ~
-{dap} `(optional)` `({ runtime: fun(): table, options: fun(): table })` debugger owner and adapter options
-{activation} `(optional)` `(table<"formatter"|"linter", fun(): table<string, string[]>>)` initial runtime names by filetype
 {linter} `(optional)` `({ logs?: fun(name: string): table[] })` run errors recorded for a linter
 
 ------------------------------------------------------------------------------
@@ -145,6 +145,53 @@ later with |hangar.update_ui()|.
 - `layout`: `padding.vertical`, `padding.horizontal`, `column_gap`, `gap`
   and `margin` in cells.
 - `missing_package_policy`: `"auto"` or `"manual"`.
+
+
+==============================================================================
+------------------------------------------------------------------------------
+                                                               *hangar-registry*
+
+The registry is optional. It adds install mapping and metadata to the tools
+that hangar discovers from the backends. Keys are logical tool names, by
+category: `lsp`, `dap`, `linter`, `formatter`, `parser` and `package`.
+`formatter_defaults` and `linter_defaults` set the default order by
+filetype.
+
+Annotate a registry table with `---@type Hangar.Registry`. |hangar.setup()|
+rejects an unknown key, field or value with an error that names its path.
+Class ~
+{Hangar.Registry}
+Fields ~
+{lsp} `(optional)` `(table<string, Hangar.Definition>)`
+{dap} `(optional)` `(table<string, Hangar.Definition>)`
+{linter} `(optional)` `(table<string, Hangar.Definition>)`
+{formatter} `(optional)` `(table<string, Hangar.Definition>)`
+{parser} `(optional)` `(table<string, Hangar.Definition>)`
+{package} `(optional)` `(table<string, Hangar.Definition>)`
+{formatter_defaults} `(optional)` `(table<string, string[]>)` formatter order by filetype
+{linter_defaults} `(optional)` `(table<string, string[]>)` linter order by filetype
+
+------------------------------------------------------------------------------
+                                                             *hangar-definition*
+
+One registry entry.
+
+- `ft`: filetypes that the tool supports.
+- `mason`: Mason package that installs the tool.
+- `runtime_name`: backend name, when it differs from the logical name.
+- `note`: text that details show.
+- `source`: who manages the tool (|Hangar.Source|).
+- `plugin`: Lua module that starts this LSP client outside
+  `vim.lsp.config`, such as `"typescript-tools"`.
+Class ~
+{Hangar.Definition}
+Fields ~
+{ft} `(optional)` `(string[])`
+{mason} `(optional)` `(string)`
+{runtime_name} `(optional)` `(string)`
+{note} `(optional)` `(string)`
+{source} `(optional)` `(Hangar.Source)`
+{plugin} `(optional)` `(string)`
 
 
  vim:tw=78:ts=8:noet:ft=help:norl:

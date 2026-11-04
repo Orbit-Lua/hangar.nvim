@@ -9,6 +9,7 @@
 local M = {}
 
 local config = require("hangar.config")
+local catalog = require("hangar.catalog")
 local data = require("hangar.data")
 local order = require("hangar.order")
 local state = require("hangar.state")
@@ -50,16 +51,14 @@ local function apply(category, name, operation, opts, callback)
 end
 
 local function valid_category(category)
-  return type(category) == "string"
-    and type(config.get().registry[category]) == "table"
-    and categories[category] ~= nil
+  return type(category) == "string" and categories[category] ~= nil
 end
 
 local function definition(category, name)
   if not valid_category(category) or type(name) ~= "string" then
     return nil
   end
-  return config.get().registry[category][name]
+  return catalog.get(category, name)
 end
 
 local function policy()
@@ -272,7 +271,7 @@ function M.install(selection, on_complete)
     return false
   end
   if not handler.install and not meta.mason then
-    local err = "no install package for " .. name
+    local err = "no install mapping for " .. name
     done(on_complete, false, err)
     return false
   end

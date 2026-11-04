@@ -193,44 +193,12 @@ describe("hangar with minimal options", function()
     assert.same({ "a", "b" }, conform.formatters_by_ft.lua)
   end)
 
-  it("keeps the last injected activation after a setup without it", function()
-    local conform = { formatters_by_ft = { lua = { "a", "b" } } }
-    package.loaded.conform = conform
-    local hangar = require("hangar")
-    hangar.setup({
-      registry = registry({ "a", "b" }),
-      adapters = {
-        activation = {
-          formatter = function()
-            return { lua = { "a", "b" } }
-          end,
-        },
-      },
+  it("rejects the removed adapters.activation option", function()
+    local ok, err = pcall(require("hangar").setup, {
+      adapters = { activation = {} },
     })
-    assert.is_true(toggle("a")[1])
-    hangar.setup({ registry = registry({ "a", "b" }) })
-    assert.is_true(toggle("a")[1])
-    assert.same({ "a", "b" }, conform.formatters_by_ft.lua)
-  end)
-
-  it("prefers injected activation over a filter record", function()
-    local conform = { formatters_by_ft = { lua = { "b" } } }
-    package.loaded.conform = conform
-    local hangar = require("hangar")
-    hangar.setup({
-      registry = registry({ "a", "b" }),
-      adapters = {
-        activation = {
-          formatter = function()
-            return { lua = { "b" } }
-          end,
-        },
-      },
-    })
-    hangar.filter("formatter", { lua = { "a", "b" } })
-    assert.is_true(toggle("a")[1])
-    assert.is_true(toggle("a")[1])
-    assert.same({ "b" }, conform.formatters_by_ft.lua)
+    assert.is_false(ok)
+    assert.truthy(err:find("adapters.activation was removed", 1, true))
   end)
 
   it(
@@ -304,7 +272,7 @@ describe("hangar with minimal options", function()
     local result = toggle("a")
     package.preload.conform = nil
     assert.is_false(result[1])
-    assert.truthy(result[2]:find("adapters.activation", 1, true))
+    assert.truthy(result[2]:find("hangar.filter was not called", 1, true))
     assert.equals(before, read(path))
   end)
 
@@ -330,11 +298,6 @@ describe("hangar with minimal options", function()
     require("hangar").setup({
       registry = { linter = { fixture_lint = { ft = { "lua" } } } },
       adapters = {
-        activation = {
-          linter = function()
-            return { lua = { "fixture_lint" } }
-          end,
-        },
         linter = {
           logs = function(name)
             return name == "fixture_lint" and entries or {}

@@ -4,6 +4,7 @@
 local M = {}
 
 local config = require("hangar.config")
+local catalog = require("hangar.catalog")
 
 local function tools()
   return config.get().registry
@@ -51,10 +52,11 @@ end
 
 ---@param category Hangar.Category
 ---@param ft string
+---@param entries? table<string, Hangar.Definition> catalog entries, read once by a caller that loops
 ---@return string[]
-local function tool_names_for_ft(category, ft)
+local function tool_names_for_ft(category, ft, entries)
   local names = {}
-  for name, meta in pairs(tools()[category] or {}) do
+  for name, meta in pairs(entries or catalog.entries(category)) do
     if vim.tbl_contains(meta.ft or {}, ft) then
       table.insert(names, name)
     end
@@ -119,8 +121,9 @@ end
 ---@param category Hangar.Category
 ---@return Hangar.FtGroup[]
 function M.build_ft_groups(category)
+  local entries = catalog.entries(category)
   local ft_set = {}
-  for _, meta in pairs(tools()[category] or {}) do
+  for _, meta in pairs(entries) do
     for _, ft in ipairs(meta.ft or {}) do
       ft_set[ft] = true
     end
@@ -131,7 +134,11 @@ function M.build_ft_groups(category)
 
   local groups = {}
   for _, ft in ipairs(filetypes) do
-    table.insert(groups, { ft = ft, names = M.names_for_ft(category, ft) })
+    local names = tool_names_for_ft(category, ft, entries)
+    table.insert(
+      groups,
+      { ft = ft, names = M.names_for_ft(category, ft, names) }
+    )
   end
   return groups
 end

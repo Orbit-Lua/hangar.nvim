@@ -4,6 +4,9 @@ local _state = nil
 
 local config = require("hangar.config")
 
+-- Categories whose tools carry a saved enabled flag.
+local toggle_categories = { "lsp", "dap", "linter", "formatter", "parser" }
+
 local function state_path()
   return config.get().state_path()
 end
@@ -11,7 +14,7 @@ end
 local function build_defaults()
   local tools = config.get().registry
   local defaults = { formatter_order = {}, linter_order = {} }
-  for _, cat in ipairs({ "lsp", "dap", "linter", "formatter" }) do
+  for _, cat in ipairs(toggle_categories) do
     defaults[cat] = {}
     for name in pairs(tools[cat] or {}) do
       defaults[cat][name] = true
@@ -66,11 +69,13 @@ function M.load(opts)
           if type(ft) == "string" and is_string_list(order) then
             local category = cat:gsub("_order$", "")
             local seen, normalized = {}, {}
+            -- A registry entry must support the filetype. A name that the
+            -- registry does not list comes from a backend that may load later,
+            -- so it stays; the order only ranks names that exist at runtime.
             for _, name in ipairs(order) do
               local meta = config.get().registry[category][name]
               if
-                meta
-                and vim.tbl_contains(meta.ft or {}, ft)
+                (not meta or vim.tbl_contains(meta.ft or {}, ft))
                 and not seen[name]
               then
                 seen[name] = true
@@ -81,8 +86,10 @@ function M.load(opts)
           end
         end
       elseif state[cat] then
+        -- Keep a choice for a tool that the registry does not list: the
+        -- backends discover tools at runtime.
         for name, enabled in pairs(val) do
-          if state[cat][name] ~= nil and type(enabled) == "boolean" then
+          if type(name) == "string" and type(enabled) == "boolean" then
             state[cat][name] = enabled
           end
         end

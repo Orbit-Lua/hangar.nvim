@@ -1,41 +1,44 @@
 ---@alias Hangar.Category "lsp"|"dap"|"linter"|"formatter"|"parser"|"package"
 
----@tag hangar-registry
----@text
---- The registry maps logical tool names to definitions, by category: `lsp`,
---- `dap`, `linter`, `formatter`, `parser` and `package`. `formatter_defaults`
---- and `linter_defaults` set the default order by filetype.
----@class Hangar.Definition
----@field ft string[]?
----@field mason string?
----@field runtime_name string?
----@field note string?
----@field source string?
-
 ---@tag hangar-options
 ---@text
---- Options of |hangar.setup()|.
+--- Options of |hangar.setup()|. Every option is optional.
 ---@class Hangar.Options
----@field registry table<string, table> logical tools by category, plus `<category>_defaults` orders
+---@field registry? Hangar.Registry install mapping and metadata (|hangar-registry|)
 ---@field defaults? fun(): { formatter?: table<string, string[]>, linter?: table<string, string[]> } user default orders
 ---@field state_path? fun(): string
 ---@field ui? table view options (|hangar-ui|)
 ---@field icons? table<string, string>
 ---@field border? any
 ---@field adapters? Hangar.Adapters
+---@field integrations? Hangar.Integrations backends that hangar gates (|hangar-integrations|)
+
+---@tag hangar-integrations
+---@text
+--- Backends that hangar gates from saved state. Each one defaults to `true`;
+--- set it to `false` to leave that backend alone. Hangar applies the conform,
+--- nvim-lint and nvim-dap integrations when the plugin loads, so hangar must be
+--- set up before them.
+---@class Hangar.Integrations
+---@field lsp? boolean `vim.lsp.enable` and clients of disabled servers
+---@field dap? boolean debug sessions of disabled adapters
+---@field conform? boolean conform `formatters_by_ft`
+---@field lint? boolean nvim-lint `linters_by_ft`
+---@field treesitter? boolean Tree-sitter highlighting of disabled parsers
 
 ---@tag hangar-adapters
 ---@text
---- Owners that hangar calls for runtime changes. Without `activation`, hangar
---- uses the lists that |hangar.filter()| records, or else the backend lists.
+--- Owners that hangar calls for runtime changes.
 ---@class Hangar.Adapters
----@field dap? { runtime: fun(): table, options: fun(): table } debugger owner and adapter options
----@field activation? table<"formatter"|"linter", fun(): table<string, string[]>> initial runtime names by filetype
 ---@field linter? { logs?: fun(name: string): table[] } run errors recorded for a linter
+
+local registry_spec = require("hangar.registry")
 
 local M = {}
 
-M.categories = { "lsp", "dap", "linter", "formatter", "parser", "package" }
+M.categories = registry_spec.categories
+
+M.integrations = { "lsp", "dap", "conform", "lint", "treesitter" }
 
 ---@type Hangar.Options?
 local options
@@ -158,29 +161,38 @@ end
 
 local function validate(opts)
   check(opts, "table", "options")
-  check(opts.registry, "table", "registry")
   check(opts.defaults, "function", "defaults", true)
   check(opts.state_path, "function", "state_path", true)
   check(opts.ui, "table", "ui", true)
   check(opts.icons, "table", "icons", true)
   local adapters = opts.adapters or {}
   check(adapters, "table", "adapters")
-  check(adapters.dap, "table", "adapters.dap", true)
-  if adapters.dap then
-    check(adapters.dap.runtime, "function", "adapters.dap.runtime")
-    check(adapters.dap.options, "function", "adapters.dap.options")
+  if adapters.dap ~= nil then
+    error(
+      "hangar.setup: adapters.dap was removed; the dap integration gates debug sessions",
+      3
+    )
   end
-  check(adapters.activation, "table", "adapters.activation", true)
-  for _, category in ipairs({ "formatter", "linter" }) do
-    check(
-      (adapters.activation or {})[category],
-      "function",
-      "adapters.activation." .. category,
-      true
+  if adapters.activation ~= nil then
+    error(
+      "hangar.setup: adapters.activation was removed; use the conform and lint integrations or hangar.filter",
+      3
     )
   end
   check(adapters.linter, "table", "adapters.linter", true)
   check((adapters.linter or {}).logs, "function", "adapters.linter.logs", true)
+  check(opts.integrations, "table", "integrations", true)
+  for key, value in pairs(opts.integrations or {}) do
+    if not vim.tbl_contains(M.integrations, key) then
+      error(
+        "hangar.setup: integrations."
+          .. tostring(key)
+          .. " is not an integration",
+        3
+      )
+    end
+    check(value, "boolean", "integrations." .. key)
+  end
 end
 
 ---Fill missing keys in place, so the caller keeps its table reference.
@@ -217,17 +229,17 @@ end
 
 ---Validate options and apply defaults. The registry gets every category and
 ---default-order table, so a partial registry can browse all categories.
----@param opts Hangar.Options
+---@param opts? Hangar.Options
 ---@return Hangar.Options
 function M.resolve(opts)
+  opts = opts or {}
   validate(opts)
-  local registry = opts.registry
-  for _, category in ipairs(M.categories) do
-    registry[category] = registry[category] or {}
-  end
-  registry.formatter_defaults = registry.formatter_defaults or {}
-  registry.linter_defaults = registry.linter_defaults or {}
+  local registry = registry_spec.resolve(opts.registry)
   local adapters = opts.adapters or {}
+  local integrations = {}
+  for _, key in ipairs(M.integrations) do
+    integrations[key] = (opts.integrations or {})[key] ~= false
+  end
   local ui = fill(opts.ui or {}, default_ui())
   check_categories(ui.categories, "hangar.setup: ui.categories")
   return {
@@ -241,9 +253,8 @@ function M.resolve(opts)
     ui = ui,
     icons = fill(opts.icons or {}, default_icons()),
     border = opts.border or "rounded",
+    integrations = integrations,
     adapters = {
-      dap = adapters.dap,
-      activation = adapters.activation or {},
       linter = {
         logs = (adapters.linter or {}).logs or function()
           return {}

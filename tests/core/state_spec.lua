@@ -68,32 +68,49 @@ describe("hangar.state", function()
     end
   end)
 
-  it("accepts only known tools, booleans, and valid order lists", function()
-    test.write_file(
-      state_path,
-      vim.json.encode({
-        lsp = {
-          lua_ls = false,
-          pyright = "disabled",
-          removed_server = false,
-        },
-        formatter_order = {
-          python = { "ruff_format", "removed_formatter" },
-          lua = { [1] = "stylua", named = "invalid" },
-          invalid = "stylua",
-        },
-        removed_category = { anything = false },
-      })
-    )
+  it(
+    "keeps booleans for any tool name and accepts valid order lists",
+    function()
+      test.write_file(
+        state_path,
+        vim.json.encode({
+          lsp = {
+            lua_ls = false,
+            pyright = "disabled",
+            removed_server = false,
+            [""] = "ignored",
+          },
+          parser = { lua = false, unregistered = true },
+          formatter_order = {
+            python = { "ruff_format", "stylua", "removed_formatter" },
+            lua = { [1] = "stylua", named = "invalid" },
+            invalid = "stylua",
+          },
+          removed_category = { anything = false },
+        })
+      )
 
-    local loaded = state.load()
-    assert.is_false(loaded.lsp.lua_ls)
-    assert.is_true(loaded.lsp.pyright)
-    assert.is_nil(loaded.lsp.removed_server)
-    assert.same({ "ruff_format" }, loaded.formatter_order.python)
-    assert.is_nil(loaded.formatter_order.lua)
-    assert.is_nil(loaded.formatter_order.invalid)
-    assert.is_nil(loaded.removed_category)
+      local loaded = state.load()
+      assert.is_false(loaded.lsp.lua_ls)
+      assert.is_true(loaded.lsp.pyright)
+      assert.is_false(loaded.lsp.removed_server)
+      assert.is_false(loaded.parser.lua)
+      assert.is_true(loaded.parser.unregistered)
+      assert.same(
+        { "ruff_format", "removed_formatter" },
+        loaded.formatter_order.python
+      )
+      assert.is_nil(loaded.formatter_order.lua)
+      assert.is_nil(loaded.formatter_order.invalid)
+      assert.is_nil(loaded.removed_category)
+    end
+  )
+
+  it("persists a choice for a tool that the registry does not list", function()
+    assert.is_true(state.set_enabled("parser", "discovered", false))
+    reload()
+    assert.is_false(state.is_enabled("parser", "discovered"))
+    assert.is_true(state.is_enabled("parser", "other"))
   end)
 
   it("memoizes state and enables unknown tools by default", function()

@@ -1,6 +1,6 @@
 local M = {}
 
-local config = require("hangar.config")
+local catalog = require("hangar.catalog")
 local order = require("hangar.order")
 local mason = require("hangar.mason")
 local state_mod = require("hangar.state")
@@ -21,7 +21,7 @@ end
 ---@return { name: string, meta: Hangar.Definition }[]
 function M.tool_entries(category, ft)
   local flat = {}
-  for name, meta in pairs(config.get().registry[category] or {}) do
+  for name, meta in pairs(catalog.entries(category)) do
     if not ft or M.supports_ft(meta, ft) then
       table.insert(flat, { name = name, meta = meta })
     end

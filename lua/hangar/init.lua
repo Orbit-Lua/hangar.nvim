@@ -21,15 +21,16 @@ function M.close()
 end
 
 ---@tag hangar.setup()
----@signature hangar.setup(opts)
+---@signature hangar.setup({opts})
 ---@text
---- Validate {opts} and fill the defaults. Only `registry` is required. See
+--- Validate {opts} and fill the defaults. {opts} is optional. See
 --- |hangar-options|.
 ---
---- A repeated call replaces the options, drops cached state and failures, and
---- closes the open view. It raises an error while a toggle or an installation
+--- Setup installs the integrations (|hangar-integrations|). A repeated call
+--- replaces the options, drops cached state and failures, and closes the open
+--- view. It raises an error while a toggle or an installation
 --- runs.
----@param opts Hangar.Options
+---@param opts? Hangar.Options
 function M.setup(opts)
   local config = require("hangar.config")
   local resolved = config.resolve(opts)
@@ -47,6 +48,7 @@ function M.setup(opts)
     state = { category = 1, expanded = {} }
   end
   config.set(resolved)
+  require("hangar.integrations").setup()
 end
 
 ---@tag hangar.filter()
@@ -80,7 +82,6 @@ function M.filter(category, by_ft)
     error("hangar.filter: by_ft must be a table", 2)
   end
   local activation = require("hangar.activation")
-  local order = require("hangar.order")
   activation.record(category, by_ft)
   local result = {}
   for ft, entry in pairs(by_ft) do
@@ -88,18 +89,7 @@ function M.filter(category, by_ft)
     if not names or ft == "*" or ft == "_" then
       result[ft] = vim.deepcopy(entry)
     else
-      local enabled = order.enabled_names_for_ft(
-        category,
-        ft,
-        order.from_runtime(category, names)
-      )
-      local filtered = order.to_runtime(category, enabled)
-      for key, value in pairs(entry) do
-        if type(key) ~= "number" then
-          filtered[key] = vim.deepcopy(value)
-        end
-      end
-      result[ft] = filtered
+      result[ft] = activation.filtered(category, ft, entry, names)
     end
   end
   return result

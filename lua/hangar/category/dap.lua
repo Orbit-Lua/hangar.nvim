@@ -4,39 +4,70 @@ local M = {
 
 local config = require("hangar.config")
 
-local MISSING_OWNER = "no DAP owner configured: inject adapters.dap"
-
----Report why runtime changes cannot apply, before any state is saved.
+---Report why a toggle cannot apply, before any state is saved.
+---@return string?
 function M.unavailable()
-  if not config.get().adapters.dap then
-    return MISSING_OWNER
+  if not config.get().integrations.dap then
+    return "the dap integration is off (integrations.dap = false)"
   end
 end
 
+---The `dap.listeners.on_config` gate reads saved state at each session start,
+---so a toggle needs no runtime change.
+---@param opts Hangar.ApplyRuntimeOpts
+---@return boolean
 function M.apply_runtime(opts)
-  local dap_ok, dap = pcall(require, "dap")
-  if not dap_ok then
-    return false, "nvim-dap is unavailable: " .. tostring(dap)
-  end
-  local owner = config.get().adapters.dap
-  if not owner then
-    return false, MISSING_OWNER
-  end
-  return owner
-    .runtime()
-    .apply_adapter(dap, opts.name, opts.is_enabled, owner.options())
+  local verb = opts.is_enabled and "enabled" or "disabled"
+  vim.notify(
+    "debug adapter " .. opts.name .. " " .. verb .. " for new sessions",
+    vim.log.levels.INFO
+  )
+  return true
 end
 
+---@param dap table
+---@param name string
+---@return integer
+local function count_configurations(dap, name)
+  local count = 0
+  for _, configurations in pairs(dap.configurations or {}) do
+    for _, entry in ipairs(configurations) do
+      if type(entry) == "table" and entry.type == name then
+        count = count + 1
+      end
+    end
+  end
+  return count
+end
+
+---@param opts Hangar.StatusOpts
+---@return string?, string?
 function M.entry_status(opts)
   local dap_ok, dap = pcall(require, "dap")
-  if not dap_ok then
+  if not dap_ok or type(dap) ~= "table" then
     return nil, nil
   end
-  local owner = config.get().adapters.dap
-  if not owner then
-    return "no DAP owner configured", "DiagnosticWarn"
+  if
+    config.get().integrations.dap
+    and not require("hangar.state").is_enabled("dap", opts.name)
+  then
+    return "disabled", "DiagnosticError"
   end
-  return owner.runtime().adapter_status(dap, opts.name)
+
+  local registered = type(dap.adapters) == "table"
+    and dap.adapters[opts.name] ~= nil
+  local count = count_configurations(dap, opts.name)
+  local label = string.format(
+    "%s %d cfg",
+    registered and "registered" or "not registered",
+    count
+  )
+  if not registered then
+    return label, "DiagnosticError"
+  elseif count == 0 then
+    return label, "DiagnosticWarn"
+  end
+  return label, "DiagnosticOk"
 end
 
 return M

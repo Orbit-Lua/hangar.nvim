@@ -30,7 +30,7 @@ test-core:
 test-integration:
     nvim --headless --clean -i NONE -l scripts/tests/run_suite.lua tests/integration
 
-# Clone the pinned Plenary and Nui test dependencies into .deps/
+# Clone the pinned test and help dependencies into .deps/
 deps:
     nvim --headless --clean -u NONE -l scripts/deps.lua
 
