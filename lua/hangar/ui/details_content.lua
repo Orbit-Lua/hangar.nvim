@@ -12,6 +12,7 @@ local M = {}
 local installation_labels = {
   installed = "Installed",
   missing = "Not installed",
+  broken = "Broken install",
   installing = "Installing…",
   external = "Externally managed",
   unavailable = "Unknown",

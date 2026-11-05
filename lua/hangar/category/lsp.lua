@@ -50,6 +50,20 @@ function M.apply_runtime(opts)
   )
 end
 
+---Report `no binary` when the configured command is not executable. Neovim
+---then refuses to start the server, so it never attaches.
+---@param name string
+---@return boolean
+local function missing_executable(name)
+  local ok, config = pcall(function()
+    return vim.lsp.config[name]
+  end)
+  local cmd = ok and type(config) == "table" and config.cmd
+  return type(cmd) == "table"
+    and type(cmd[1]) == "string"
+    and vim.fn.executable(cmd[1]) == 0
+end
+
 ---A plugin client has no `vim.lsp.config` entry, so its status counts clients.
 ---@param opts Hangar.StatusOpts
 ---@return string, string
@@ -62,6 +76,8 @@ function M.entry_status(opts)
   local clients = vim.lsp.get_clients({ name = name })
   if #clients > 0 then
     return "running " .. #clients, "DiagnosticOk"
+  elseif not opts.meta.plugin and missing_executable(name) then
+    return "no binary", "DiagnosticWarn"
   else
     return "idle", "DiagnosticWarn"
   end

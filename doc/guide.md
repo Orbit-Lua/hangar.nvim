@@ -84,6 +84,7 @@ Operations persist intent before runtime changes. A backend failure stays in det
 | `Disabled` | Global saved enablement is off |
 | `Installing…` | Mason installation is running |
 | `Not installed` | Required package or parser is absent |
+| `Broken install` | The Mason package directory has no receipt; install it again |
 | `Unknown` | Registry or backend availability cannot be confirmed |
 | `Not configured` / `Partly configured` | Runtime wiring is missing for part or all of the selected scope |
 | `Activation not configured` | No formatter or linter activation is available |

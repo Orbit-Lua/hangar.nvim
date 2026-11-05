@@ -151,9 +151,17 @@ describe("hangar.data", function()
           installation = "unavailable",
           attention = true,
         },
+        {
+          installed = false,
+          broken = true,
+          enabled = true,
+          label = "Broken install",
+          installation = "broken",
+          attention = true,
+        },
       }) do
         mason.package_status = function()
-          return case.installed, case.error
+          return case.installed, case.error, case.broken
         end
         state.get().formatter.stylua = case.enabled
         local health =
@@ -189,6 +197,24 @@ describe("hangar.data", function()
       "Partly configured 1/2",
     }, labels)
   end)
+  it("reports an enabled LSP server without an executable", function()
+    mason.package_status = function()
+      return true
+    end
+    vim.lsp.config("pyright", { cmd = { "__hangar_missing_server__" } })
+    vim.lsp.enable("pyright")
+    local ok, health =
+      pcall(data.health_status, "lsp", "pyright", tools.lsp.pyright)
+    vim.lsp.config("pyright", { cmd = { vim.v.progpath } })
+    local present =
+      data.health_status("lsp", "pyright", tools.lsp.pyright).label
+    vim.lsp.enable("pyright", false)
+    assert.is_true(ok, health)
+    assert.equals("Missing executable", health.label)
+    assert.is_true(health.attention)
+    assert.equals("Idle", present)
+  end)
+
   it("keeps source diagnostics distinct from a failed linter", function()
     package.loaded.lint = {
       linters_by_ft = { lua = { "luacheck" } },

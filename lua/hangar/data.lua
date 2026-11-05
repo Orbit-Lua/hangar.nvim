@@ -54,18 +54,21 @@ end
 ---@return string? install_error
 local function installation_status(category, name, meta)
   local managed = meta.mason or category == "package"
-  local installed, install_error
+  local installed, install_error, broken
   if category == "parser" then
     installed, install_error =
       category_handlers.parser.installation_status(name)
   elseif managed then
-    installed, install_error = mason.package_status(meta.mason or name)
+    installed, install_error, broken = mason.package_status(meta.mason or name)
   end
 
   if managed and mason.is_installing(meta.mason or name) then
     return "installing", install_error
   elseif install_error then
     return "unavailable", install_error
+  elseif broken then
+    return "broken",
+      "The package directory has no Mason receipt. Install the package again."
   elseif installed == true then
     return "installed"
   elseif installed == false then
@@ -118,6 +121,8 @@ local function primary_label(handler, opts, status)
     return "Disabled", "Comment"
   elseif status.installation == "missing" then
     return "Not installed", "DiagnosticWarn"
+  elseif status.installation == "broken" then
+    return "Broken install", "DiagnosticWarn"
   elseif
     status.installation == "unavailable" or status.installation == "unknown"
   then
