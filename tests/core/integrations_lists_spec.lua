@@ -57,8 +57,12 @@ describe("hangar conform and lint integrations", function()
     package.preload.conform = conform_module
     package.preload.lint = function()
       local module = { linters_by_ft = {} }
-      function module.try_lint()
-        linted = vim.deepcopy(module.linters_by_ft.lua)
+      function module.try_lint(names)
+        if names == nil then
+          linted = vim.deepcopy(module.linters_by_ft.lua)
+        else
+          linted = type(names) == "string" and { names } or vim.deepcopy(names)
+        end
       end
       return module
     end
@@ -91,7 +95,8 @@ describe("hangar conform and lint integrations", function()
     configure()
     conform = require("conform")
     conform.formatters_by_ft = { lua = { "b", "a", lsp_format = "fallback" } }
-    conform.format()
+    -- The hook ignores the call options, which are not the module.
+    conform.format({ bufnr = 0 })
     assert.same({ "a", lsp_format = "fallback" }, formatted)
   end)
 
@@ -103,6 +108,37 @@ describe("hangar conform and lint integrations", function()
     assert.same({ "l2" }, linted)
     assert.same({ true }, toggle("linter", "l1"))
     assert.same({ "l1", "l2" }, lint.linters_by_ft.lua)
+  end)
+
+  it("drops disabled linters that a caller names", function()
+    configure({
+      registry = {
+        linter = {
+          l1 = { ft = { "lua" } },
+          l2 = { ft = { "lua" } },
+          l3 = { ft = { "lua" }, runtime_name = "l3_cli" },
+        },
+      },
+    })
+    require("hangar.state").set_enabled("linter", "l3", false)
+    lint = require("lint")
+    lint.try_lint({ "l1", "l2" })
+    assert.same({ "l2" }, linted)
+    lint.try_lint("l1")
+    assert.same({}, linted)
+    lint.try_lint({ "unknown", "l3_cli" })
+    assert.same({ "unknown" }, linted)
+
+    assert.same({ true }, toggle("linter", "l1"))
+    lint.try_lint("l1")
+    assert.same({ "l1" }, linted)
+  end)
+
+  it("passes named linters when the lint integration is off", function()
+    configure({ integrations = { lint = false } })
+    lint = require("lint")
+    lint.try_lint({ "l1", "l2" })
+    assert.same({ "l1", "l2" }, linted)
   end)
 
   it("gates a backend that loaded before setup", function()

@@ -32,7 +32,7 @@ Setup installs the integrations of `integrations`. Each one defaults to `true`. 
 
 - **LSP**: setup wraps `vim.lsp.enable`. An enable of a disabled server is recorded and skipped. Re-enabling the server replays that enable. hangar never enables a server that your configuration did not enable. An `LspAttach` handler stops clients of disabled servers, also clients that a plugin starts.
 - **DAP**: a `dap.listeners.on_config` listener aborts a session of a disabled adapter type and reports it.
-- **conform** and **lint**: each table that `conform.setup` or your configuration assigns becomes the activation. hangar filters it in place before conform formats and before nvim-lint runs.
+- **conform** and **lint**: each table that `conform.setup` or your configuration assigns becomes the activation. hangar filters it in place before conform formats and before nvim-lint runs. hangar also drops disabled linters from the names that a caller passes to `try_lint`.
 - **Tree-sitter**: a `FileType` handler stops Tree-sitter in buffers of a disabled language. Re-enabling restarts it only in the buffers that hangar stopped. The parser files stay installed.
 
 hangar applies the conform, nvim-lint and nvim-dap integrations when `require` first loads that plugin, through one module loader. A plugin that is already loaded at setup is gated at once. Set up hangar at startup, before these plugins load and before your configuration calls `vim.lsp.enable`.

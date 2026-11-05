@@ -86,30 +86,37 @@ local function unwrap(fn)
   return fn
 end
 
----Run `run` before or after each call of `module[key]`. A failure of `run` is
----reported and never breaks the call.
+---Run `run` before or after each call of `module[key]`, with the call
+---arguments. A `before` run may return a `vim.F.pack_len` table that replaces
+---the arguments. A failure of `run` is reported and never breaks the call.
 ---@param module table
 ---@param key string
 ---@param when "before"|"after"
----@param run fun()
+---@param run fun(...): table?
 function M.hook(module, key, when, run)
   if type(module[key]) ~= "function" then
     return
   end
   local original = unwrap(module[key])
-  local function guarded()
-    local ok, err = pcall(run)
+  ---@return table?
+  local function guarded(...)
+    local ok, result = pcall(run, ...)
     if not ok then
-      report(key, err)
+      report(key, result)
+      return nil
     end
+    return type(result) == "table" and result or nil
   end
   module[key] = function(...)
     if when == "before" then
-      guarded()
+      local args = guarded(...)
+      if args then
+        return original(vim.F.unpack_len(args))
+      end
       return original(...)
     end
     local result = vim.F.pack_len(original(...))
-    guarded()
+    guarded(...)
     return vim.F.unpack_len(result)
   end
 end
