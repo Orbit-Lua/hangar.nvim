@@ -3,6 +3,8 @@ local M = {}
 function M.install(path)
   local busted = require("plenary.busted")
   local runtime_errors = {}
+  -- FIXME: an error raised in a `vim.schedule` callback emits no `msg_show`
+  -- in the headless child, so a spec whose scheduled callback errors passes.
   vim.ui_attach(
     vim.api.nvim_create_namespace("hangar_test_errors"),
     { ext_messages = true },
