@@ -75,50 +75,46 @@ function M.get_package(pkg_name)
   return pkg, nil
 end
 
+---A broken package keeps its install directory without a receipt, as a failed
+---Windows uninstall leaves it. Mason then counts it installed, but no shim exists.
+---@param pkg table
+---@return boolean
+local function is_broken(pkg)
+  if type(pkg.get_receipt) ~= "function" or not pkg:is_installed() then
+    return false
+  end
+  local ok, receipt = pcall(pkg.get_receipt, pkg)
+  return ok
+    and type(receipt) == "table"
+    and type(receipt.is_present) == "function"
+    and not receipt:is_present()
+end
+
 ---@param pkg_name string
----@return boolean? installed, string? err
+---@return boolean? installed, string? err, boolean? broken
 function M.package_status(pkg_name)
   local pkg, err = M.get_package(pkg_name)
   if not pkg then
     return nil, err
   end
+  if is_broken(pkg) then
+    return false, nil, true
+  end
   return pkg:is_installed(), nil
 end
 
----@param pkg_name string?
----@param on_done (fun(success: boolean, err?: string)?)?
+---@param pkg_name string
+---@param pkg table
 ---@return boolean
-function M.install(pkg_name, on_done)
-  if not pkg_name then
-    return false
-  end
-
-  local pkg, err = M.get_package(pkg_name)
-  if not pkg then
-    vim.notify("Hangar: " .. err, vim.log.levels.WARN)
-    if on_done then
-      on_done(false, err)
-    end
-    return false
-  end
-
-  if pending[pkg_name] then
-    if on_done then
-      table.insert(pending[pkg_name], on_done)
-    end
-    return true
-  end
-
-  if pkg:is_installed() then
+local function start_install(pkg_name, pkg)
+  if pkg:is_installed() and not is_broken(pkg) then
     vim.notify(pkg_name .. " is already installed", vim.log.levels.INFO)
-    if on_done then
-      on_done(true)
-    end
+    finish_install(pkg_name, true)
     return true
   end
 
-  pending[pkg_name] = on_done and { on_done } or {}
   vim.notify("Installing " .. pkg_name .. "…", vim.log.levels.INFO)
+  -- Mason's promote step removes a broken directory before it moves the new one.
   local install_ok, handle = pcall(pkg.install, pkg)
   if not install_ok or not handle or type(handle.once) ~= "function" then
     local install_err = install_ok and "invalid install handle"
@@ -128,19 +124,69 @@ function M.install(pkg_name, on_done)
     return false
   end
   handle:once("closed", function()
-    if pkg:is_installed() then
-      vim.schedule(function()
+    vim.schedule(function()
+      if pkg:is_installed() and not is_broken(pkg) then
         vim.notify(pkg_name .. " installed", vim.log.levels.INFO)
         finish_install(pkg_name, true)
-      end)
-    else
-      vim.schedule(function()
+      else
         vim.notify("Failed to install " .. pkg_name, vim.log.levels.ERROR)
         finish_install(pkg_name, false, "installation failed")
-      end)
-    end
+      end
+    end)
   end)
+  return true
+end
 
+---@param pkg_name string
+---@param err string
+local function fail_lookup(pkg_name, err)
+  vim.notify("Hangar: " .. err, vim.log.levels.WARN)
+  finish_install(pkg_name, false, err)
+end
+
+---Install a package. A failed lookup refreshes the Mason registry once, since a
+---first start has no registry until Mason downloads it.
+---@param pkg_name string?
+---@param on_done (fun(success: boolean, err?: string)?)?
+---@return boolean
+function M.install(pkg_name, on_done)
+  if not pkg_name then
+    return false
+  end
+
+  if pending[pkg_name] then
+    if on_done then
+      table.insert(pending[pkg_name], on_done)
+    end
+    return true
+  end
+  pending[pkg_name] = on_done and { on_done } or {}
+
+  local pkg, err = M.get_package(pkg_name)
+  if pkg then
+    return start_install(pkg_name, pkg)
+  end
+
+  local reg_ok, reg = pcall(require, "mason-registry")
+  if not reg_ok or type(reg.refresh) ~= "function" then
+    fail_lookup(pkg_name, err)
+    return false
+  end
+  local refresh_ok, refresh_err = pcall(
+    reg.refresh,
+    vim.schedule_wrap(function()
+      local retry, retry_err = M.get_package(pkg_name)
+      if retry then
+        start_install(pkg_name, retry)
+      else
+        fail_lookup(pkg_name, retry_err)
+      end
+    end)
+  )
+  if not refresh_ok then
+    fail_lookup(pkg_name, tostring(refresh_err))
+    return false
+  end
   return true
 end
 

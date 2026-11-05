@@ -85,6 +85,118 @@ describe("hangar.mason", function()
     assert.same({ true, true }, results)
   end)
 
+  ---A package stub whose install handle stays open until `close()` runs.
+  local function stub_package(state)
+    local pkg = { install_calls = 0 }
+    function pkg.is_installed()
+      return state.installed
+    end
+    function pkg.get_receipt()
+      return {
+        is_present = function()
+          return state.receipt
+        end,
+      }
+    end
+    function pkg.install()
+      pkg.install_calls = pkg.install_calls + 1
+      return {
+        once = function(_, event, callback)
+          assert.equals("closed", event)
+          pkg.close = callback
+        end,
+      }
+    end
+    return pkg
+  end
+
+  it("refreshes an empty registry once before it installs", function()
+    local packages = {}
+    local refreshes = 0
+    local state = { installed = false, receipt = false }
+    local pkg = stub_package(state)
+    package.loaded["mason-registry"] = {
+      get_package = function(name)
+        return packages[name] or error("unknown package")
+      end,
+      refresh = function(callback)
+        refreshes = refreshes + 1
+        packages["lua-language-server"] = pkg
+        callback(true, {})
+      end,
+    }
+    local result
+    assert.is_true(mason.install("lua-language-server", function(ok, err)
+      result = { ok, err }
+    end))
+    assert.is_true(vim.wait(1000, function()
+      return pkg.install_calls == 1
+    end))
+    assert.equals(1, refreshes)
+    assert.is_true(mason.is_installing("lua-language-server"))
+
+    state.installed, state.receipt = true, true
+    pkg.close()
+    assert.is_true(vim.wait(1000, function()
+      return result ~= nil
+    end))
+    assert.same({ true }, result)
+  end)
+
+  it("reports a missing package after one registry refresh", function()
+    local refreshes = 0
+    package.loaded["mason-registry"] = {
+      get_package = function()
+        error("unknown package")
+      end,
+      refresh = function(callback)
+        refreshes = refreshes + 1
+        callback(true, {})
+      end,
+    }
+    local result
+    mason.install("_missing_", function(ok, err)
+      result = { ok, err }
+    end)
+    assert.is_true(vim.wait(1000, function()
+      return result ~= nil
+    end))
+    assert.equals(1, refreshes)
+    assert.same({ false, "mason package not found: _missing_" }, result)
+    assert.is_false(mason.is_installing("_missing_"))
+  end)
+
+  it("reports and reinstalls a package directory without a receipt", function()
+    local state = { installed = true, receipt = false }
+    local pkg = stub_package(state)
+    package.loaded["mason-registry"] = {
+      get_package = function()
+        return pkg
+      end,
+    }
+
+    local installed, err, broken = mason.package_status("lua-language-server")
+    assert.is_false(installed)
+    assert.is_nil(err)
+    assert.is_true(broken)
+
+    local result
+    assert.is_true(mason.install("lua-language-server", function(ok)
+      result = ok
+    end))
+    assert.equals(1, pkg.install_calls)
+    state.receipt = true
+    pkg.close()
+    assert.is_true(vim.wait(1000, function()
+      return result ~= nil
+    end))
+    assert.is_true(result)
+    assert.same(
+      { true, nil, nil },
+      { mason.package_status("lua-language-server") }
+    )
+  end)
+
   it("removes every registry listener when observation is disposed", function()
     local listeners = {}
     package.loaded["mason-registry"] = {
