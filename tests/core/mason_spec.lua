@@ -1,3 +1,10 @@
+-- FIXME: report two Mason 2.3.1 bugs upstream (mason-org/mason.nvim).
+-- 1. On Windows, `UninstallRunner` reports success when `rmrf` cannot delete
+--    a running executable. The package directory stays without a receipt or
+--    shim, so `is_installed()` stays true. Hangar reports it as broken.
+-- 2. A failed install that leaves a link, such as
+--    `share/mason-schemas/lsp/lua-language-server.json`, makes each later
+--    install fail with `... is already linked` until the file is removed.
 describe("hangar.mason", function()
   local previous_registry
   local previous_mason
