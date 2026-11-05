@@ -266,6 +266,18 @@ function M.install(selection, on_complete)
   end
   local function finish(success, err)
     release()
+    if success and handler.after_install then
+      local ok, failure = pcall(handler.after_install, name, meta)
+      if not ok then
+        vim.notify(
+          "Hangar: after install of "
+            .. name
+            .. " failed: "
+            .. tostring(failure),
+          vim.log.levels.ERROR
+        )
+      end
+    end
     done(on_complete, success, err)
   end
   local ok, started = pcall(function()

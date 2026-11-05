@@ -50,6 +50,24 @@ function M.apply_runtime(opts)
   )
 end
 
+---Enable an installed server again, so open buffers attach without a reopen.
+---Neovim checks the executable at each start, and `vim.lsp.enable` after
+---`VimEnter` starts the servers of open buffers. A plugin client starts on its
+---own, and a server that the consumer did not enable stays off.
+---@param name string
+---@param meta Hangar.Definition
+function M.after_install(name, meta)
+  local runtime_name = meta.runtime_name or name
+  if
+    meta.plugin
+    or not require("hangar.state").is_enabled("lsp", name)
+    or not vim.lsp.is_enabled(runtime_name)
+  then
+    return
+  end
+  vim.lsp.enable(runtime_name)
+end
+
 ---Report `no binary` when the configured command is not executable. Neovim
 ---then refuses to start the server, so it never attaches.
 ---@param name string

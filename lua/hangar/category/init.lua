@@ -18,6 +18,7 @@
 ---@field apply_order? fun(opts: Hangar.ApplyOrderOpts): boolean?, string?
 ---@field entry_status? fun(opts: Hangar.StatusOpts): string?, string?, table?
 ---@field install? fun(name: string, on_complete?: fun(success: boolean, err?: string)): boolean
+---@field after_install? fun(name: string, meta: Hangar.Definition) runs after `manager.install` succeeds
 ---@field installation_status? fun(name: string): boolean?, string?
 ---@field wiring_status? fun(opts: Hangar.StatusOpts): string?, string?
 ---@field unavailable? fun(): string? why runtime changes cannot apply, checked before state is saved

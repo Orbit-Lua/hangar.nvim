@@ -69,7 +69,7 @@ Logical selection survives reordering, resizing and refreshes. Category and expa
 
 ## Install and enable
 
-`i` installs a Mason package or parser without enabling a disabled runtime tool. Dependency packages support installation only.
+`i` installs a Mason package or parser without enabling a disabled runtime tool. After an install, an enabled LSP server attaches to open buffers. Dependency packages support installation only.
 
 Space toggles an LSP, DAP, formatter, linter or parser. Installed and externally managed tools update saved intent and runtime immediately. With `ui.missing_package_policy = "auto"`, a missing Mason package installs first. The tool is enabled only after success. Concurrent requests share one installation. A newer toggle supersedes pending intent. Older completion cannot restore superseded enablement. A failure keeps the enablement.
 

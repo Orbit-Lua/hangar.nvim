@@ -52,6 +52,7 @@ describe("hangar LSP integration", function()
         lsp = {
           logical_ls = { runtime_name = "aliased_ls" },
           plugin_ls = { plugin = "fixture_plugin" },
+          installed_ls = { mason = "installed-ls" },
         },
       },
       state_path = function()
@@ -117,6 +118,44 @@ describe("hangar LSP integration", function()
       assert.is_true(vim.lsp.is_enabled("gated_ls"))
     end
   )
+
+  it("attaches an installed server to an open buffer", function()
+    configure({})
+    local missing = { "__hangar_missing_server__" }
+    vim.lsp.config(
+      "installed_ls",
+      { cmd = missing, filetypes = { "hangartest" } }
+    )
+    vim.lsp.enable("installed_ls")
+    local buffer = vim.api.nvim_create_buf(true, false)
+    vim.api.nvim_buf_set_name(buffer, test.temp_dir("lsp-install") .. "/a.test")
+    vim.bo[buffer].filetype = "hangartest"
+    assert.same({}, vim.lsp.get_clients({ name = "installed_ls" }))
+
+    local mason = require("hangar.mason")
+    local prior_install = mason.install
+    mason.install = function(package_name, on_done)
+      assert.equals("installed-ls", package_name)
+      vim.lsp.config("installed_ls", { cmd = server() })
+      on_done(true)
+      return true
+    end
+    local result
+    local ok, err = pcall(manager.install, {
+      category = "lsp",
+      name = "installed_ls",
+    }, function(success, install_err)
+      result = { success, install_err }
+    end)
+    mason.install = prior_install
+    assert.is_true(ok, err)
+    assert.same({ true }, result)
+    assert.is_true(vim.wait(2000, function()
+      return #vim.lsp.get_clients({ bufnr = buffer, name = "installed_ls" })
+        == 1
+    end))
+    vim.lsp.enable("installed_ls", false)
+  end)
 
   it("stops a disabled plugin client when it attaches", function()
     configure({ plugin_ls = false })
