@@ -184,6 +184,28 @@ describe("hangar treesitter integration", function()
     assert.is_false(highlighted(stopped))
   end)
 
+  it("reports highlighted buffers in the parser snapshot", function()
+    configure()
+    local function label()
+      local snapshot = require("hangar.manager").snapshot({
+        category = "parser",
+        scope = "states",
+      })
+      for _, tool in ipairs(snapshot.tools) do
+        if tool.name == "lua" then
+          return tool.health_status.label, tool.health_status.runtime
+        end
+      end
+    end
+    lua_buffer(true)
+    assert.same({ "Disabled", "Idle" }, { label() })
+
+    assert.same({ true }, toggle())
+    assert.same({ "Active in 1 buffer", "Active in 1 buffer" }, { label() })
+    lua_buffer(true)
+    assert.equals("Active in 2 buffers", label())
+  end)
+
   it("leaves Tree-sitter alone and refuses toggles when it is off", function()
     configure({ integrations = { treesitter = false } })
     local buf = lua_buffer(true)

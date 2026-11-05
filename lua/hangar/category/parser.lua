@@ -26,6 +26,41 @@ function M.apply_runtime(opts)
   return true
 end
 
+---Count the valid buffers that Tree-sitter highlights with a language.
+---@param lang string
+---@return integer
+local function highlighted_buffers(lang)
+  local count = 0
+  for buf, highlighter in pairs(vim.treesitter.highlighter.active) do
+    local ok, tree_lang = pcall(function()
+      return highlighter.tree:lang()
+    end)
+    if
+      vim.api.nvim_buf_is_valid(buf)
+      and (
+          ok and tree_lang
+          or vim.treesitter.language.get_lang(vim.bo[buf].filetype)
+        )
+        == lang
+    then
+      count = count + 1
+    end
+  end
+  return count
+end
+
+---Report Tree-sitter highlighting of the parser language in open buffers.
+---@param opts Hangar.StatusOpts
+---@return string, string
+function M.entry_status(opts)
+  local count = highlighted_buffers(opts.name)
+  if count == 0 then
+    return "idle", "Comment"
+  end
+  return string.format("active in %d buffer%s", count, count == 1 and "" or "s"),
+    "DiagnosticOk"
+end
+
 local function treesitter()
   local ok, module = pcall(require, "nvim-treesitter")
   if not ok then
