@@ -1,10 +1,10 @@
 -- Run each spec of a suite or one spec in its own Neovim process through
--- telemetry.nvim. Each child validates its own results and exits nonzero on a
+-- telemetry.lua. Each child validates its own results and exits nonzero on a
 -- failure; the parent checks only that the child reached its results.
 local cwd = vim.fn.getcwd()
-local telemetry_path = cwd .. "/.deps/telemetry.nvim"
+local telemetry_path = cwd .. "/.deps/telemetry.lua"
 if vim.fn.isdirectory(telemetry_path) == 0 then
-  io.stderr:write("telemetry.nvim is missing; run just deps\n")
+  io.stderr:write("telemetry.lua is missing; run just deps\n")
   vim.cmd("cquit 1")
 end
 package.path = table.concat({

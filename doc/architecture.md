@@ -51,4 +51,4 @@ An asynchronous operation can outlive the view. On completion, it updates state 
 
 `doc/hangar.txt` is generated. `scripts/doc.lua` runs mini.doc on the annotation blocks of `init.lua`, `config.lua` and `registry.lua` that have a `@tag`. Other annotations stay code comments. `just doc-check` fails when the tracked help differs from a new generation or has an invalid tag.
 
-The test runner `scripts/tests/run_suite.lua` runs each spec in a child Neovim and reports through telemetry.nvim. A child fails on a failed, skipped or missing result.
+The test runner `scripts/tests/run_suite.lua` runs each spec in a child Neovim and reports through telemetry.lua. A child fails on a failed, skipped or missing result.

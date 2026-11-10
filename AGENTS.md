@@ -62,8 +62,8 @@ Preserve the setup options, mappings and persisted state unless the task changes
 - Put fixtures below `vim.g.hangar_test_root` through `tests.helpers`.
 - Reject skipped tests and uncaught editor errors through executed results.
 - Pin each test and help dependency to a commit that exists on its remote.
-- Exception: telemetry.nvim, the test reporter, tracks its default branch.
-- Run `just deps` to clone the test dependencies into `.deps/` and update telemetry.nvim.
+- Pin telemetry.lua, the test reporter, to the commit of its release tag.
+- Run `just deps` to clone the test dependencies into `.deps/` at their pinned commits.
 - Run `just all` before you finish. It checks the generated help and runs the core and integration specs.
 - End the report with `Tests added`, `Tests updated` or `No tests added`, and its protected contract.
 

@@ -30,11 +30,11 @@ local dependencies = {
     url = "https://github.com/mfussenegger/nvim-dap.git",
     commit = "8aba1e3805438ee6f74207e0b7385ef951bb9945",
   },
-  -- The test reporter tracks its default branch, the stated exception to the
-  -- pinning rule in AGENTS.md.
+  -- The test reporter's 0.1.0 release.
   {
-    name = "telemetry.nvim",
-    url = "https://github.com/Orbit-Lua/telemetry.nvim.git",
+    name = "telemetry.lua",
+    url = "https://github.com/Orbit-Lua/telemetry.lua.git",
+    commit = "f5d4e6dccc596a1c0968077c33ad0365fc24d1dd",
   },
 }
 
@@ -55,18 +55,14 @@ for _, dependency in ipairs(dependencies) do
   if vim.fn.isdirectory(path .. "/.git") == 0 then
     run({ "git", "clone", "--filter=blob:none", dependency.url, path })
   end
-  if dependency.commit then
-    run({ "git", "-C", path, "fetch", "--quiet", "origin", dependency.commit })
-    run({
-      "git",
-      "-C",
-      path,
-      "checkout",
-      "--quiet",
-      "--detach",
-      dependency.commit,
-    })
-  else
-    run({ "git", "-C", path, "pull", "--quiet", "--ff-only" })
-  end
+  run({ "git", "-C", path, "fetch", "--quiet", "origin", dependency.commit })
+  run({
+    "git",
+    "-C",
+    path,
+    "checkout",
+    "--quiet",
+    "--detach",
+    dependency.commit,
+  })
 end
