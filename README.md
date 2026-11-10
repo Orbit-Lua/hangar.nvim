@@ -2,7 +2,7 @@
 
 Turn language servers, debug adapters, formatters, linters and Tree-sitter parsers on and off from one Neovim view.
 
-[![Validate hangar.nvim](https://github.com/Orbit-Lua/hangar.nvim/actions/workflows/validate.yml/badge.svg?branch=main)](https://github.com/Orbit-Lua/hangar.nvim/actions/workflows/validate.yml) [![Release](https://img.shields.io/github/v/release/Orbit-Lua/hangar.nvim)](https://github.com/Orbit-Lua/hangar.nvim/releases/latest) [![Neovim](https://img.shields.io/badge/Neovim-0.12%2B-57A143?logo=neovim&logoColor=white)](https://neovim.io/)
+[![Validate](https://github.com/Orbit-Lua/hangar.nvim/actions/workflows/validate.yml/badge.svg?branch=main)](https://github.com/Orbit-Lua/hangar.nvim/actions/workflows/validate.yml?query=branch%3Amain) [![Release](https://img.shields.io/github/v/release/Orbit-Lua/hangar.nvim)](https://github.com/Orbit-Lua/hangar.nvim/releases/latest) [![Neovim](https://img.shields.io/badge/Neovim-0.12%2B-57A143?logo=neovim&logoColor=white)](https://neovim.io/)
 
 ## Install
 

@@ -1,4 +1,4 @@
-name: Validate hangar.nvim
+name: Validate
 
 on:
   push:
