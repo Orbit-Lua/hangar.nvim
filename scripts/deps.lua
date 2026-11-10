@@ -30,11 +30,11 @@ local dependencies = {
     url = "https://github.com/mfussenegger/nvim-dap.git",
     commit = "8aba1e3805438ee6f74207e0b7385ef951bb9945",
   },
-  -- The test reporter's 0.1.0 release.
+  -- The test reporter's 0.1.1 release.
   {
     name = "telemetry.lua",
     url = "https://github.com/Orbit-Lua/telemetry.lua.git",
-    commit = "f5d4e6dccc596a1c0968077c33ad0365fc24d1dd",
+    commit = "d6fdcf1d0ceb578c7ffc92099c46df9747bf41d1",
   },
 }
 
