@@ -110,6 +110,8 @@ Category tabs use `HangarCategoryActive` and `HangarCategoryInactive`. Each grou
 
 Installation, management source, runtime health and enablement are distinct facts in details. Installation alone does not activate a tool. Supported filetypes do not override the initial formatter and linter activation.
 
+Parser activity includes parsed injected languages, such as LuaDoc in Lua. Each highlighted buffer counts once per language, regardless of its injection regions.
+
 ## Priority and persistence
 
 Use `[` / `]` on a formatter or linter in buffer scope or in an expanded filetype group. Priority applies per filetype. Enablement is global to the tool. Saved order includes disabled tools. It is restored when they are enabled again. Reordering preserves unrelated runtime entries.

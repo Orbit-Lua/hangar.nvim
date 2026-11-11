@@ -215,4 +215,68 @@ describe("hangar treesitter integration", function()
     assert.is_false(result[1])
     assert.matches("integrations%.treesitter = false", result[2])
   end)
+
+  it("counts parsed injected languages once per highlighted buffer", function()
+    configure({ integrations = { treesitter = false } })
+    assert(
+      vim.treesitter.language.add("vimdoc"),
+      "bundled Vimdoc parser missing"
+    )
+    local buf = vim.api.nvim_create_buf(true, false)
+    table.insert(buffers, buf)
+    vim.api.nvim_buf_set_lines(buf, 0, -1, false, {
+      "-- first documentation region",
+      "-- second documentation region",
+    })
+    local tree = vim.treesitter.get_parser(buf, "lua", {
+      injections = {
+        lua = '((comment) @injection.content (#set! injection.language "vimdoc"))',
+        vimdoc = "",
+      },
+    })
+    tree:parse(true)
+    assert.is_not_nil(tree:children().vimdoc)
+    assert.equals(2, #tree:children().vimdoc:trees())
+    vim.treesitter.start(buf, "lua")
+    local parser = require("hangar.category.parser")
+    assert.equals(
+      "active in 1 buffer",
+      parser.entry_status({ name = "vimdoc" })
+    )
+    assert.equals("active in 1 buffer", parser.entry_status({ name = "lua" }))
+    vim.treesitter.stop(buf)
+    assert.equals("idle", parser.entry_status({ name = "vimdoc" }))
+  end)
+
+  it(
+    "reports nested injections without parsing new regions for status",
+    function()
+      configure({ integrations = { treesitter = false } })
+      local buf = vim.api.nvim_create_buf(true, false)
+      table.insert(buffers, buf)
+      vim.api.nvim_buf_set_lines(buf, 0, -1, false, {
+        "local docs = [=[",
+        ">vim",
+        "let g:probe = 1",
+        "<",
+        "]=]",
+      })
+      local tree = vim.treesitter.get_parser(buf, "lua", {
+        injections = {
+          lua = '((string_content) @injection.content (#set! injection.language "vimdoc"))',
+        },
+      })
+      tree:parse(true)
+      assert.is_not_nil(tree:children().vimdoc:children().vim)
+      vim.treesitter.start(buf, "lua")
+      local parser = require("hangar.category.parser")
+      assert.equals("active in 1 buffer", parser.entry_status({ name = "vim" }))
+      -- A newly added child has no parsed trees and must not become active just
+      -- because the status UI inspected the highlighter.
+      local unparsed = tree:add_child("query")
+      assert.equals("idle", parser.entry_status({ name = "query" }))
+      assert.same({}, unparsed:trees())
+      vim.treesitter.stop(buf)
+    end
+  )
 end)

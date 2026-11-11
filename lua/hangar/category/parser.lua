@@ -32,18 +32,16 @@ end
 local function highlighted_buffers(lang)
   local count = 0
   for buf, highlighter in pairs(vim.treesitter.highlighter.active) do
-    local ok, tree_lang = pcall(function()
-      return highlighter.tree:lang()
-    end)
-    if
-      vim.api.nvim_buf_is_valid(buf)
-      and (
-          ok and tree_lang
-          or vim.treesitter.language.get_lang(vim.bo[buf].filetype)
-        )
-        == lang
-    then
-      count = count + 1
+    if vim.api.nvim_buf_is_valid(buf) and highlighter.tree then
+      local found = highlighter.tree:lang() == lang
+      -- Visit existing parsed trees, including injections. Status must not
+      -- parse or activate a language merely to display it.
+      highlighter.tree:for_each_tree(function(_, language_tree)
+        found = found or language_tree:lang() == lang
+      end)
+      if found then
+        count = count + 1
+      end
     end
   end
   return count
