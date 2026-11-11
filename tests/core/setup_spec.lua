@@ -154,6 +154,27 @@ describe("Hangar setup", function()
     end
   )
 
+  it("validates header gaps before replacing accepted UI options", function()
+    local options = fixture(test.temp_dir("header-gap"))
+    options.ui = { layout = { header_gap = 2 } }
+    setup(options)
+    local config = require("hangar.config")
+    local accepted = config.get().ui
+    assert.equals(options.ui, accepted)
+    for _, gap in ipairs({ -1, 0.5, "1", false, math.huge, 0 / 0 }) do
+      local ui = { layout = { header_gap = gap } }
+      assert.is_false(pcall(require("hangar").update_ui, ui))
+      assert.is_false(
+        pcall(setup, vim.tbl_extend("force", options, { ui = ui }))
+      )
+      assert.equals(accepted, config.get().ui)
+    end
+    require("hangar").update_ui({ layout = { header_gap = 0 } })
+    assert.equals(0, config.get().ui.layout.header_gap)
+    require("hangar").update_ui({})
+    assert.equals(1, config.get().ui.layout.header_gap)
+  end)
+
   it("runs views, state and adapters from injected options only", function()
     local root = test.temp_dir("tool-setup-injected")
     local options = fixture(root)

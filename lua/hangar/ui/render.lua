@@ -52,6 +52,13 @@ function M.define_highlights()
     "HangarCategoryInactive",
     { link = "TabLine", default = true }
   )
+  for group, link in pairs({
+    HangarColumnHeader = "Title",
+    HangarContext = "Comment",
+    HangarSeparator = "FloatBorder",
+  }) do
+    vim.api.nvim_set_hl(0, group, { link = link, default = true })
+  end
 end
 
 ---Report whether the tools of a category have an enabled state.
@@ -117,7 +124,7 @@ end
 
 local function separator(width)
   local line = Line()
-  line:append(string.rep("─", width), "FloatBorder")
+  line:append(string.rep("─", width), "HangarSeparator")
   return line
 end
 
@@ -170,7 +177,7 @@ local function context_line(view, snapshot, width)
     local filename = source.name == "" and "[No Name]"
       or vim.fs.basename(source.name)
     local filetype = source.filetype == "" and "no filetype" or source.filetype
-    add(" · " .. filetype .. " · " .. filename, "Comment")
+    add(" · " .. filetype .. " · " .. filename, "HangarContext")
   end
   if snapshot.summary and (snapshot.summary.attention or 0) > 0 then
     add(
@@ -231,9 +238,17 @@ end
 ---Render the header and the footer of the view.
 function M.chrome(view, snapshot)
   local width = M.content_width(view, view.header.winid)
-  local header = { tab_line(view, width), context_line(view, snapshot, width) }
+  local header = { tab_line(view, width) }
+  local function header_gap()
+    for _ = 1, view.header_gap do
+      table.insert(header, Line())
+    end
+  end
+  header_gap()
+  table.insert(header, context_line(view, snapshot, width))
   -- Normal height adds the column labels and a separator; compact keeps two rows.
   if vim.api.nvim_win_get_height(view.header.winid) > 2 then
+    header_gap()
     table.insert(header, M.columns(width, view.spacing.column_gap))
     table.insert(header, separator(width))
   end
@@ -253,9 +268,9 @@ function M.columns(width, column_gap)
   local line = Line()
   local gap = string.rep(" ", column_gap)
   local widths = M.column_widths(width, column_gap, math.max(1, width - 2))
-  line:append("  " .. str.rpad("Tool", widths.tool), "Title")
-  line:append(gap .. str.rpad("Enabled", widths.enabled), "Title")
-  line:append(gap .. str.trunc("Status", widths.status), "Title")
+  line:append("  " .. str.rpad("Tool", widths.tool), "HangarColumnHeader")
+  line:append(gap .. str.rpad("Enabled", widths.enabled), "HangarColumnHeader")
+  line:append(gap .. str.trunc("Status", widths.status), "HangarColumnHeader")
   return line
 end
 

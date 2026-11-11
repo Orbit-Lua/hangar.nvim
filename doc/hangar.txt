@@ -59,7 +59,7 @@ Usage ~
 Replace the view options with {values}. A key that {values} omits takes
 its default. An open view rebinds its keys and redraws. See |hangar-ui|.
 
-It rejects empty or unknown categories and conflicting mappings.
+It rejects empty or unknown categories, conflicting mappings and invalid header gaps.
 Keycode aliases, category numbers and mapping prefixes must not collide.
 Parameters ~
 {values} `(table)`
@@ -86,6 +86,8 @@ Each status icon has its own group: `HangarIconEnabled`, `HangarIconIdle`,
 `HangarIconError`, `HangarIconUnknown` and `HangarIconDisabled`.
 
 Category tabs use `HangarCategoryActive` and `HangarCategoryInactive`.
+Headings use `HangarColumnHeader`. Source context uses `HangarContext`.
+Header and footer rules use `HangarSeparator`.
 
 Each group links to a built-in group by default. To override a group,
 define it in your color scheme or configuration.
@@ -145,8 +147,9 @@ later with |hangar.update_ui()|.
   with each other or category numbers, including keycode aliases and prefixes.
   `details` focuses details; `back` returns to the list.
 - `width`, `height`, `details.width`: window sizes in cells.
-- `layout`: `padding.vertical`, `padding.horizontal`, `column_gap`, `gap`
-  and `margin` in cells.
+- `layout`: `padding.vertical`, `padding.horizontal`, `column_gap`, `gap`,
+  `margin` and `header_gap` in cells. `header_gap` defaults to one blank row
+  between tabs, scope and column headings; use zero for a dense header.
 - `missing_package_policy`: `"auto"` or `"manual"`.
 
 

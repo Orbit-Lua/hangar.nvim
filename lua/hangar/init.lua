@@ -101,7 +101,7 @@ end
 --- Replace the view options with {values}. A key that {values} omits takes
 --- its default. An open view rebinds its keys and redraws. See |hangar-ui|.
 ---
---- It rejects empty or unknown categories and conflicting mappings.
+--- It rejects empty or unknown categories, conflicting mappings and invalid header gaps.
 --- Keycode aliases, category numbers and mapping prefixes must not collide.
 ---@param values table
 function M.update_ui(values)
@@ -151,6 +151,8 @@ end
 --- `HangarIconError`, `HangarIconUnknown` and `HangarIconDisabled`.
 ---
 --- Category tabs use `HangarCategoryActive` and `HangarCategoryInactive`.
+--- Headings use `HangarColumnHeader`. Source context uses `HangarContext`.
+--- Header and footer rules use `HangarSeparator`.
 ---
 --- Each group links to a built-in group by default. To override a group,
 --- define it in your color scheme or configuration.

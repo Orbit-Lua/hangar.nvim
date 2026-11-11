@@ -16,6 +16,21 @@ local M = {}
 -- Minimum frame content: two-cell row prefix, tool, enabled and status columns.
 local MIN_CONTENT_WIDTH = 23
 
+---Share header allocation with the renderer, reserving useful body rows first.
+---@param height integer
+---@param space Hangar.Spacing
+---@return { header: integer, footer: integer, header_gap: integer }
+function M.sections(height, space)
+  if height < 8 then
+    return { header = 2, footer = 1, header_gap = 0 }
+  end
+  local gap = math.min(
+    ui().layout.header_gap,
+    math.max(0, math.floor((height - 7 - 2 * space.vertical) / 2))
+  )
+  return { header = 4 + 2 * gap, footer = 2, header_gap = gap }
+end
+
 ---Effective spacing for the current editor. When the configured spacing does
 ---not fit, it shrinks in a fixed order, each value to its minimum before the
 ---next one shrinks; the settings keep their configured values.

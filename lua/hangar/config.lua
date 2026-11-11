@@ -54,8 +54,9 @@ local options
 ---   with each other or category numbers, including keycode aliases and prefixes.
 ---   `details` focuses details; `back` returns to the list.
 --- - `width`, `height`, `details.width`: window sizes in cells.
---- - `layout`: `padding.vertical`, `padding.horizontal`, `column_gap`, `gap`
----   and `margin` in cells.
+--- - `layout`: `padding.vertical`, `padding.horizontal`, `column_gap`, `gap`,
+---   `margin` and `header_gap` in cells. `header_gap` defaults to one blank row
+---   between tabs, scope and column headings; use zero for a dense header.
 --- - `missing_package_policy`: `"auto"` or `"manual"`.
 
 -- The view installs these mappings and renders the same descriptions in help.
@@ -128,6 +129,7 @@ local function default_ui()
     layout = {
       column_gap = 3,
       gap = 2,
+      header_gap = 1,
       margin = 2,
       padding = {
         horizontal = 2,
@@ -283,6 +285,20 @@ local function check_mappings(ui, path)
   end
 end
 
+---@param ui table
+---@param path string
+local function check_layout(ui, path)
+  local gap = ui.layout and ui.layout.header_gap
+  if
+    type(gap) ~= "number"
+    or gap < 0
+    or gap >= math.huge
+    or gap ~= math.floor(gap)
+  then
+    error(path .. ".layout.header_gap must be a nonnegative integer", 4)
+  end
+end
+
 ---Validate options and apply defaults. The registry gets every category and
 ---default-order table, so a partial registry can browse all categories.
 ---@param opts? Hangar.Options
@@ -299,6 +315,7 @@ function M.resolve(opts)
   local ui = fill(vim.deepcopy(opts.ui or {}), default_ui())
   check_categories(ui.categories, "hangar.setup: ui.categories")
   check_mappings(ui, "hangar.setup: ui")
+  check_layout(ui, "hangar.setup: ui")
   -- Validate a copy before adding defaults to the caller-owned table.
   ui = fill(opts.ui or {}, ui)
   return {
@@ -334,6 +351,7 @@ function M.resolve_ui(values)
   local ui = fill(vim.deepcopy(values), default_ui())
   check_categories(ui.categories, "hangar.update_ui: categories")
   check_mappings(ui, "hangar.update_ui: ui")
+  check_layout(ui, "hangar.update_ui: ui")
   return ui
 end
 

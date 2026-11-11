@@ -196,6 +196,50 @@ describe("Hangar Nui sessions", function()
     require("tests.helpers").configure()
   end)
 
+  it(
+    "separates header rows and collapses gaps before hiding content",
+    function()
+      vim.o.columns, vim.o.lines = 180, 55
+      tool.open()
+      local function rows()
+        return vim.api.nvim_buf_get_lines(
+          buffer_for("HangarNavigation"),
+          0,
+          -1,
+          false
+        )
+      end
+      assert.truthy(rows()[2]:match("^%s*$"))
+      assert.truthy(rows()[3]:find("Buffer", 1, true))
+      assert.truthy(rows()[4]:match("^%s*$"))
+      assert.truthy(rows()[5]:find("Tool", 1, true))
+      tool.close()
+      vim.o.columns, vim.o.lines = 100, 45
+      tool.open()
+      assert.truthy(rows()[2]:match("^%s*$"))
+      assert.truthy(rows()[3]:find("Buffer", 1, true))
+      assert.truthy(rows()[4]:match("^%s*$"))
+      assert.truthy(rows()[5]:find("Tool", 1, true))
+      local function update(ui)
+        local count = #snapshots
+        tool.update_ui(ui)
+        assert.is_true(vim.wait(200, function()
+          return #snapshots > count
+        end))
+      end
+      update({ layout = { header_gap = 0 } })
+      assert.truthy(rows()[2]:find("Buffer", 1, true))
+      assert.truthy(rows()[3]:find("Tool", 1, true))
+      update({ height = 8, layout = { header_gap = 1000000 } })
+      assert.equals(4, #rows())
+      assert.truthy(rows()[3]:find("Tool", 1, true))
+      assert.is_true(vim.api.nvim_win_get_height(vim.fn.bufwinid(body())) >= 1)
+      update({ height = 5, layout = { header_gap = 1000000 } })
+      assert.equals(2, #rows())
+      assert.truthy(rows()[2]:find("Buffer", 1, true))
+    end
+  )
+
   it("moves between floating panes through actual control-key input", function()
     vim.keymap.set("n", "<C-l>", "<C-w>l")
     vim.keymap.set("n", "<C-h>", "<C-w>h")
@@ -206,7 +250,6 @@ describe("Hangar Nui sessions", function()
       vim.o.columns, vim.o.lines = size[1], size[2]
       tool.open()
       local list_window = vim.fn.bufwinid(body())
-      assert.equals("", vim.fn.maparg("K", "n"))
       input("<C-l>")
       local pane = assert(buffer_for("HangarDetails"))
       assert.equals(pane, vim.api.nvim_get_current_buf())
@@ -218,6 +261,7 @@ describe("Hangar Nui sessions", function()
       assert.equals(pane, vim.api.nvim_get_current_buf())
       input("<C-h>")
       assert.equals(list_window, vim.api.nvim_get_current_win())
+      assert.equals("", vim.fn.maparg("K", "n"))
       press("?")
       input("<C-l>")
       assert.equals(buffer_for("HangarDetails"), vim.api.nvim_get_current_buf())
@@ -701,7 +745,32 @@ describe("Hangar Nui sessions", function()
     end
     local override = { fg = 0xff0000 }
     vim.api.nvim_set_hl(0, "HangarIconError", override)
+    local semantic_groups =
+      { "HangarColumnHeader", "HangarContext", "HangarSeparator" }
+    for _, group in ipairs(semantic_groups) do
+      vim.api.nvim_set_hl(0, group, override)
+    end
     tool.open()
+    local rendered_groups = {}
+    for _, mark in
+      ipairs(
+        vim.api.nvim_buf_get_extmarks(
+          buffer_for("HangarNavigation"),
+          -1,
+          0,
+          -1,
+          { details = true }
+        )
+      )
+    do
+      rendered_groups[mark[4].hl_group] = true
+    end
+    for _, group in ipairs(semantic_groups) do
+      assert.is_true(
+        rendered_groups[group],
+        "unused highlight customization: " .. group
+      )
+    end
     local function icon_group(name)
       local row = line_for(name) - 1
       for _, mark in
@@ -737,10 +806,16 @@ describe("Hangar Nui sessions", function()
     tool.close()
     tool.open()
     assert.same(override, vim.api.nvim_get_hl(0, { name = "HangarIconError" }))
+    for _, group in ipairs(semantic_groups) do
+      assert.same(override, vim.api.nvim_get_hl(0, { name = group }))
+    end
 
     vim.cmd("highlight clear")
     refreshed("ColorScheme")
     for _, group in pairs(require("hangar.ui.render").icon_highlights) do
+      assert.is_not_nil(vim.api.nvim_get_hl(0, { name = group }).link, group)
+    end
+    for _, group in ipairs(semantic_groups) do
       assert.is_not_nil(vim.api.nvim_get_hl(0, { name = group }).link, group)
     end
   end)

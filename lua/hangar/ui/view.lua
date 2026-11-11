@@ -71,11 +71,12 @@ function View:active()
 end
 
 local function sections(view, height)
-  local compact = height < 8
+  local sizes = geometry.sections(height, view.spacing)
+  view.header_gap = sizes.header_gap
   return Layout.Box({
-    Layout.Box(view.header, { size = compact and 2 or 4 }),
+    Layout.Box(view.header, { size = sizes.header }),
     Layout.Box(view.body, { grow = 1 }),
-    Layout.Box(view.footer, { size = compact and 1 or 2 }),
+    Layout.Box(view.footer, { size = sizes.footer }),
   }, { dir = "col" })
 end
 

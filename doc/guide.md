@@ -71,6 +71,8 @@ Setup and `update_ui()` reject conflicting mappings before they replace accepted
 
 `ui.layout` sets the spacing in cells. `padding` sets blank rows and columns inside the windows. `column_gap` separates the Tool, Enabled and Status columns. `gap` separates the list and details borders. `margin` keeps windows away from the editor edge. If the editor is too small, the margin, gap, vertical padding, horizontal padding and column gap shrink in that order. The configured values do not change.
 
+`header_gap` sets blank rows between the category tabs, buffer scope and column headings. It defaults to `1`; use `0` for a dense header. It accepts nonnegative integers. Header gaps shrink first when the frame cannot fit them alongside useful content. Compact headers omit the gaps and column headings.
+
 ## Install and enable
 
 `i` installs a Mason package or parser without enabling a disabled runtime tool. After an install, an enabled LSP server attaches to open buffers. Dependency packages support installation only.
@@ -111,6 +113,8 @@ Each status icon has its own highlight group:
 - `HangarIconDisabled`
 
 Category tabs use `HangarCategoryActive` and `HangarCategoryInactive`. Each group links to a built-in group by default. To override a group, define it in your color scheme or configuration.
+
+`HangarColumnHeader` styles column headings. `HangarContext` styles source context. `HangarSeparator` styles header and footer rules. They link to `Title`, `Comment` and `FloatBorder` by default.
 
 Installation, management source, runtime health and enablement are distinct facts in details. Installation alone does not activate a tool. Supported filetypes do not override the initial formatter and linter activation.
 
