@@ -61,6 +61,7 @@ function View:map_keys()
     end, { nowait = true, silent = true })
     table.insert(self.mapped, tostring(index))
   end
+  details.map_keys(self)
 end
 
 function View:active()

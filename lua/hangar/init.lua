@@ -101,7 +101,8 @@ end
 --- Replace the view options with {values}. A key that {values} omits takes
 --- its default. An open view rebinds its keys and redraws. See |hangar-ui|.
 ---
---- It raises an error when `categories` is empty or names an unknown category.
+--- It rejects empty or unknown categories and conflicting mappings.
+--- Keycode aliases, category numbers and mapping prefixes must not collide.
 ---@param values table
 function M.update_ui(values)
   local config = require("hangar.config")

@@ -61,7 +61,11 @@ If no source is available, status shows `Activation not configured`. Toggle and 
 
 Use `1`–`6` or Tab / Shift-Tab to select LSP, DAP, Linter, Formatter, Parser or Package. Number keys and help follow `ui.categories`, and footer hints follow `ui.mappings`. Buffer-scope formatter and linter lists show saved ranks. All-state lists group by filetype. Expand a group with `o`, Enter or `za`.
 
-Logical selection survives reordering, resizing and refreshes. Category and expansion choices survive reopening. Help (`?` or `g?`) suspends tool actions and stays visible during refresh. Beside or below the list, details stay open and follow the cursor. They show the selected tool, a filetype group, an empty category or the category overview with an icon legend. `K` focuses details from any row. `q` or Escape returns to the list and keeps details open. If the editor is too narrow, `K` opens details on demand, and `q` closes them.
+Logical selection survives reordering, resizing and refreshes. Category and expansion choices survive reopening. Help (`?` or `g?`) suspends tool actions and stays visible during refresh. Beside or below the list, details stay open and follow the cursor. They show the selected tool, a filetype group, an empty category or the category overview with an icon legend.
+
+`<C-l>` focuses details, including the overview during help. `<C-h>`, `q` or Escape returns from details to the list. Beside or below the list, details stay open. On narrow screens, `<C-l>` opens popup details, and returning closes them. `K` has no default binding. Assign the `details` and `back` actions in `ui.mappings` to change the focus keys.
+
+Setup and `update_ui()` reject conflicting mappings before they replace accepted options. Keycode aliases, category numbers and prefixes of other mappings conflict. For example, `<Tab>` and `<C-i>` cannot name separate actions. All Hangar mappings stay local to its view buffers.
 
 ## Layout
 

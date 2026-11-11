@@ -59,7 +59,8 @@ Usage ~
 Replace the view options with {values}. A key that {values} omits takes
 its default. An open view rebinds its keys and redraws. See |hangar-ui|.
 
-It raises an error when `categories` is empty or names an unknown category.
+It rejects empty or unknown categories and conflicting mappings.
+Keycode aliases, category numbers and mapping prefixes must not collide.
 Parameters ~
 {values} `(table)`
 
@@ -140,7 +141,9 @@ later with |hangar.update_ui()|.
 
 - `categories`: category names in tab order; a nonempty list.
 - `labels`: tab label by category.
-- `mappings`: list of `{ keys, action, description }`.
+- `mappings`: list of `{ keys, action, description }`. Keys must not conflict
+  with each other or category numbers, including keycode aliases and prefixes.
+  `details` focuses details; `back` returns to the list.
 - `width`, `height`, `details.width`: window sizes in cells.
 - `layout`: `padding.vertical`, `padding.horizontal`, `column_gap`, `gap`
   and `margin` in cells.

@@ -196,6 +196,39 @@ describe("Hangar Nui sessions", function()
     require("tests.helpers").configure()
   end)
 
+  it("moves between floating panes through actual control-key input", function()
+    vim.keymap.set("n", "<C-l>", "<C-w>l")
+    vim.keymap.set("n", "<C-h>", "<C-w>h")
+    local function input(key)
+      vim.api.nvim_feedkeys(vim.keycode(key), "xt", false)
+    end
+    for _, size in ipairs({ { 180, 55 }, { 100, 45 }, { 60, 18 } }) do
+      vim.o.columns, vim.o.lines = size[1], size[2]
+      tool.open()
+      local list_window = vim.fn.bufwinid(body())
+      assert.equals("", vim.fn.maparg("K", "n"))
+      input("<C-l>")
+      local pane = assert(buffer_for("HangarDetails"))
+      assert.equals(pane, vim.api.nvim_get_current_buf())
+      local count = #snapshots
+      vim.api.nvim_exec_autocmds("User", { pattern = "HangarChanged" })
+      assert.is_true(vim.wait(200, function()
+        return #snapshots > count
+      end))
+      assert.equals(pane, vim.api.nvim_get_current_buf())
+      input("<C-h>")
+      assert.equals(list_window, vim.api.nvim_get_current_win())
+      press("?")
+      input("<C-l>")
+      assert.equals(buffer_for("HangarDetails"), vim.api.nvim_get_current_buf())
+      input("<C-h>")
+      assert.equals(list_window, vim.api.nvim_get_current_win())
+      tool.close()
+      assert.equals("<C-W>l", vim.fn.maparg("<C-l>", "n"))
+      assert.equals("<C-W>h", vim.fn.maparg("<C-h>", "n"))
+    end
+  end)
+
   it(
     "captures source scope, navigates categories, expands and retains reordered selection",
     function()
@@ -279,7 +312,7 @@ describe("Hangar Nui sessions", function()
       press("i")
       press("?")
       local help = lines()
-      for _, key in ipairs({ "<Space>", "i", "[", "]", "o", "K" }) do
+      for _, key in ipairs({ "<Space>", "i", "[", "]", "o", "<C-l>" }) do
         press(key)
       end
       assert.equals(1, #operations)
@@ -289,7 +322,7 @@ describe("Hangar Nui sessions", function()
       assert.equals(help, lines())
       press("g?")
       assert.is_truthy(vim.api.nvim_get_current_line():find("ruff", 1, true))
-      press("K")
+      press("<C-l>")
       assert.is_truthy(lines(buffer_for("HangarDetails")):find("ruff", 1, true))
       local detail_text = lines(buffer_for("HangarDetails"))
       assert.is_truthy(detail_text:find("Installation: Installed", 1, true))
@@ -302,7 +335,7 @@ describe("Hangar Nui sessions", function()
       assert.equals(body(), vim.api.nvim_get_current_buf())
       press("6")
       select("pyright")
-      press("K")
+      press("<C-l>")
       assert.is_truthy(
         lines(buffer_for("HangarDetails")):find("Enabled: N/A", 1, true)
       )
@@ -330,7 +363,7 @@ describe("Hangar Nui sessions", function()
         return { messages = messages }
       end
       select("ruff")
-      press("K")
+      press("<C-l>")
       detail_buffer = buffer_for("HangarDetails")
       assert.is_truthy(lines(detail_buffer):find("+2 more", 1, true))
       local detail_width =
@@ -394,7 +427,7 @@ describe("Hangar Nui sessions", function()
       tool.open()
       press("3")
       select("ruff")
-      press("K")
+      press("<C-l>")
       for _, size in ipairs({ { 120, 40 }, { 120, 24 }, { 48, 14 }, { 24, 9 } }) do
         vim.o.columns, vim.o.lines = size[1], size[2]
         vim.api.nvim_exec_autocmds("VimResized", {})
@@ -479,7 +512,7 @@ describe("Hangar Nui sessions", function()
       vim.o.columns, vim.o.lines = 160, 40
       require("hangar.config").get().ui.details.width = 300
       tool.open()
-      press("K")
+      press("<C-l>")
       for _, window in ipairs(vim.api.nvim_list_wins()) do
         local buffer = vim.api.nvim_win_get_buf(window)
         if vim.bo[buffer].filetype:match("^Hangar") then
@@ -595,7 +628,7 @@ describe("Hangar Nui sessions", function()
         assert.is_nil(lines():find("Enabled", 1, true))
 
         move("python (")
-        press("K")
+        press("<C-l>")
         assert.equals(window, vim.api.nvim_get_current_win())
         press("q", buffer)
         assert.equals(vim.fn.bufwinid(body()), vim.api.nvim_get_current_win())
@@ -848,7 +881,7 @@ describe("Hangar Nui sessions", function()
       end
       local function mapped(key)
         return vim.api.nvim_buf_call(body(), function()
-          return vim.fn.maparg(key, "n") ~= ""
+          return vim.fn.maparg(key, "n", false, true).buffer == 1
         end)
       end
 
@@ -875,6 +908,10 @@ describe("Hangar Nui sessions", function()
       for _, mapping in ipairs(mappings) do
         if mapping.action == "close" then
           mapping.keys = { "x" }
+        elseif mapping.action == "details" then
+          mapping.keys = { "gD" }
+        elseif mapping.action == "back" then
+          mapping.keys = { "gB" }
         end
       end
       update({ mappings = mappings, categories = { "lsp", "formatter" } })
@@ -882,6 +919,20 @@ describe("Hangar Nui sessions", function()
       assert.is_false(mapped("q"))
       assert.is_true(mapped("2"))
       assert.is_false(mapped("3"))
+      assert.is_false(mapped("<C-l>"))
+      press("gD")
+      local details_buffer = buffer_for("HangarDetails")
+      assert.equals(details_buffer, vim.api.nvim_get_current_buf())
+      local function details_mapping(key)
+        return vim.api.nvim_buf_call(details_buffer, function()
+          return vim.fn.maparg(key, "n", false, true)
+        end)
+      end
+      assert.same({}, details_mapping("<C-h>"))
+      assert.same({}, details_mapping("q"))
+      assert.is_function(details_mapping("gB").callback)
+      press("gB", details_buffer)
+      assert.equals(body(), vim.api.nvim_get_current_buf())
       assert.truthy(floats():find(" x close", 1, true))
       assert.is_nil(floats():find(" q close", 1, true))
       press("?")
@@ -923,7 +974,7 @@ describe("Hangar Nui sessions", function()
     assert.truthy(row("pyright"):find("On", 1, true))
     assert.truthy(footer():find(" Space toggle", 1, true))
     select("pyright")
-    press("K")
+    press("<C-l>")
     local detail_text = lines(buffer_for("HangarDetails"))
     assert.truthy(detail_text:find("Enabled: On", 1, true))
     assert.truthy(detail_text:find("Enablement: Global", 1, true))

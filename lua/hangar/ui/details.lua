@@ -15,6 +15,7 @@ local function close_popup(view, expected)
     view.details = nil
     view.details_node = nil
     view.details_mode = nil
+    view.details_mapped = nil
     popup:unmount()
   end
 end
@@ -73,6 +74,46 @@ local function redraw(view)
 end
 
 ---Mount the details window and bind its close keys and cleanup.
+function M.map_keys(view)
+  local popup = view.details
+  if not popup then
+    return
+  end
+  for _, key in ipairs(view.details_mapped or {}) do
+    pcall(popup.unmap, popup, "n", key)
+  end
+  view.details_mapped = {}
+  for _, mapping in ipairs(tool_config.get().ui.mappings) do
+    if
+      mapping.action == "back"
+      or mapping.action == "close"
+      or mapping.action == "details"
+    then
+      for _, key in ipairs(mapping.keys) do
+        popup:map("n", key, function()
+          if mapping.action ~= "details" then
+            M.back(view)
+          end
+        end, { nowait = true, silent = true, desc = mapping.description })
+        table.insert(view.details_mapped, key)
+      end
+    end
+  end
+end
+
+---Return focus to the list; close details only in popup placement.
+function M.back(view)
+  local _, _, placement = geometry.details(view)
+  if placement == "popup" then
+    close_popup(view)
+  else
+    view.details_mode = "preview"
+  end
+  if view:active() then
+    vim.api.nvim_set_current_win(view.body.winid)
+  end
+end
+
 local function open_popup(view)
   view.details_mode = view.details_mode or "preview"
   view.details = Popup({
@@ -87,21 +128,7 @@ local function open_popup(view)
   })
   view.details:mount()
   local popup = view.details
-  -- A mounted pane stays open and only returns focus; a popup closes.
-  local function close()
-    local _, _, current = geometry.details(view)
-    if current == "popup" then
-      close_popup(view, popup)
-    else
-      view.details_mode = "preview"
-    end
-    if view:active() then
-      vim.api.nvim_set_current_win(view.body.winid)
-    end
-  end
-  for _, key in ipairs({ "q", "<Esc>" }) do
-    popup:map("n", key, close, { nowait = true, silent = true })
-  end
+  M.map_keys(view)
 
   local function forget()
     vim.schedule(function()

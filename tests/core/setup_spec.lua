@@ -216,6 +216,45 @@ describe("Hangar setup", function()
   end)
 
   it(
+    "rejects ambiguous mapping keys before changing accepted options",
+    function()
+      local options = fixture(test.temp_dir("mapping-conflicts"))
+      options.ui = {}
+      setup(options)
+      local config = require("hangar.config")
+      local accepted = config.get().ui
+      assert.equals(options.ui, accepted)
+      local function entry(keys, action)
+        return { keys = keys, action = action, description = action }
+      end
+      for _, mappings in ipairs({
+        { entry({ "<Tab>", "<C-i>" }, "next") },
+        { entry({ "<CR>" }, "expand"), entry({ "<C-m>" }, "help") },
+        { entry({ "x" }, "help"), entry({ "x" }, "close") },
+        { entry({ "1" }, "help") },
+        { entry({ "g" }, "help"), entry({ "g?" }, "help") },
+      }) do
+        for _, apply in ipairs({
+          function(ui)
+            require("hangar").update_ui(ui)
+          end,
+          function(ui)
+            setup(vim.tbl_extend("force", options, { ui = ui }))
+          end,
+        }) do
+          local ui = { mappings = mappings }
+          local before = vim.deepcopy(ui)
+          local ok, err = pcall(apply, ui)
+          assert.is_false(ok)
+          assert.truthy(tostring(err):find("conflict", 1, true))
+          assert.equals(accepted, config.get().ui)
+          assert.same(before, ui)
+        end
+      end
+    end
+  )
+
+  it(
     "replaces options, failures, cached state and the open view on a repeated setup",
     function()
       local first = test.temp_dir("tool-setup-first")

@@ -48,9 +48,11 @@ The view lists the tools that your configuration registers. Space turns the sele
 | `i` | Install without changing enablement |
 | `[` / `]` | Reorder formatters or linters for a filetype |
 | `o`, Enter, `za` | Expand or collapse a filetype group |
-| `K` | Focus details |
+| `<C-l>` / `<C-h>` | Focus details / return to the list |
 | `?`, `g?` | Toggle help |
 | `q`, Escape | Close |
+
+In details, `q`, Escape and `<C-h>` return to the list. Popup details also close. The `details` action accepts a custom key through `ui.mappings`.
 
 ## Ownership
 

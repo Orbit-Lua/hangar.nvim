@@ -50,7 +50,9 @@ local options
 ---
 --- - `categories`: category names in tab order; a nonempty list.
 --- - `labels`: tab label by category.
---- - `mappings`: list of `{ keys, action, description }`.
+--- - `mappings`: list of `{ keys, action, description }`. Keys must not conflict
+---   with each other or category numbers, including keycode aliases and prefixes.
+---   `details` focuses details; `back` returns to the list.
 --- - `width`, `height`, `details.width`: window sizes in cells.
 --- - `layout`: `padding.vertical`, `padding.horizontal`, `column_gap`, `gap`
 ---   and `margin` in cells.
@@ -101,7 +103,8 @@ local function default_mappings()
       action = "expand",
       description = "Expand / collapse entry",
     },
-    { keys = { "K" }, action = "details", description = "Show tool details" },
+    { keys = { "<C-l>" }, action = "details", description = "Focus details" },
+    { keys = { "<C-h>" }, action = "back", description = "Return to list" },
   }
 end
 
@@ -231,6 +234,55 @@ local function check_categories(categories, path)
   end
 end
 
+---Reject keys that nowait mappings would shadow, including keycode aliases.
+---@param ui table
+---@param path string
+local function check_mappings(ui, path)
+  local actions = {}
+  for _, mapping in ipairs(default_mappings()) do
+    actions[mapping.action] = true
+  end
+  if type(ui.mappings) ~= "table" or not vim.islist(ui.mappings) then
+    error(path .. ".mappings must be a list", 4)
+  end
+  local keys = {}
+  local function reserve(key)
+    if type(key) ~= "string" or key == "" then
+      error(path .. ".mappings keys must be nonempty strings", 4)
+    end
+    local code = vim.keycode(key)
+    for _, previous in ipairs(keys) do
+      if
+        code:sub(1, #previous.code) == previous.code
+        or previous.code:sub(1, #code) == code
+      then
+        error(
+          path .. ".mappings conflict: " .. previous.key .. " and " .. key,
+          4
+        )
+      end
+    end
+    keys[#keys + 1] = { code = code, key = key }
+  end
+  for index = 1, #ui.categories do
+    reserve(tostring(index))
+  end
+  for _, mapping in ipairs(ui.mappings) do
+    if
+      type(mapping) ~= "table"
+      or not actions[mapping.action]
+      or type(mapping.description) ~= "string"
+      or type(mapping.keys) ~= "table"
+      or not vim.islist(mapping.keys)
+    then
+      error(path .. ".mappings needs keys, a known action and a description", 4)
+    end
+    for _, key in ipairs(mapping.keys) do
+      reserve(key)
+    end
+  end
+end
+
 ---Validate options and apply defaults. The registry gets every category and
 ---default-order table, so a partial registry can browse all categories.
 ---@param opts? Hangar.Options
@@ -244,8 +296,11 @@ function M.resolve(opts)
   for _, key in ipairs(M.integrations) do
     integrations[key] = (opts.integrations or {})[key] ~= false
   end
-  local ui = fill(opts.ui or {}, default_ui())
+  local ui = fill(vim.deepcopy(opts.ui or {}), default_ui())
   check_categories(ui.categories, "hangar.setup: ui.categories")
+  check_mappings(ui, "hangar.setup: ui")
+  -- Validate a copy before adding defaults to the caller-owned table.
+  ui = fill(opts.ui or {}, ui)
   return {
     registry = registry,
     defaults = opts.defaults or function()
@@ -278,6 +333,7 @@ function M.resolve_ui(values)
   end
   local ui = fill(vim.deepcopy(values), default_ui())
   check_categories(ui.categories, "hangar.update_ui: categories")
+  check_mappings(ui, "hangar.update_ui: ui")
   return ui
 end
 

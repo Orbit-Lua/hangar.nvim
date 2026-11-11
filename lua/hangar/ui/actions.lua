@@ -44,6 +44,14 @@ function view_actions.previous(self)
   step_category(self, -1)
 end
 
+function view_actions.details(self)
+  details.show(self, self:current())
+end
+
+function view_actions.back(self)
+  details.back(self)
+end
+
 ---Toggle the nearest group at or above the node.
 local function expand(self, node)
   while not node:has_children() and node:get_parent_id() do
@@ -94,8 +102,6 @@ function M.run(self, action)
   end
   if action == "expand" then
     expand(self, node)
-  elseif action == "details" then
-    details.show(self, node)
   elseif node.tool then
     tool_action(self, action, node)
   end
